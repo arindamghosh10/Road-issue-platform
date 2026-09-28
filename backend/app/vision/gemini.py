@@ -24,9 +24,13 @@ import logging
 import httpx
 
 from app.config import get_settings
-from app.vision.base import VisionResult
+from app.vision.base import FixAssessment, VisionResult
 
 log = logging.getLogger(__name__)
+
+
+class _CallFailed(Exception):
+    pass
 
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
@@ -63,6 +67,33 @@ RESPONSE_SCHEMA = {
         "severity", "confidence", "reason",
     ],
 }
+
+
+FIX_PROMPT = """You are checking a government repair of public road infrastructure in India.
+The FIRST photo is the citizen's report of damage ("{category}"). The SECOND photo was
+taken by an official after the repair, at the same GPS location.
+
+Answer:
+- same_location: do both photos plausibly show the same place (road layout, surroundings)?
+- repaired: is the damage visible in the first photo gone or properly fixed in the second?
+- confidence: 0 to 1, how sure you are about `repaired`
+- reason: one short sentence
+"""
+
+FIX_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "same_location": {"type": "BOOLEAN"},
+        "repaired": {"type": "BOOLEAN"},
+        "confidence": {"type": "NUMBER"},
+        "reason": {"type": "STRING"},
+    },
+    "required": ["same_location", "repaired", "confidence", "reason"],
+}
+
+
+def _image_part(jpeg: bytes) -> dict:
+    return {"inline_data": {"mime_type": "image/jpeg", "data": base64.b64encode(jpeg).decode()}}
 
 
 class GeminiVisionVerifier:
@@ -105,22 +136,58 @@ class GeminiVisionVerifier:
             reason="Vision model unavailable; report judged on other checks.", error=message,
         )
 
-    def assess_damage(
-        self, image_jpeg: bytes, claimed_category: str, description: str | None
-    ) -> VisionResult:
+    def _call(self, body: dict) -> dict:
+        """POST to Gemini and return the parsed JSON answer. Raises _CallFailed."""
         try:
             resp = self._client.post(
                 API_URL.format(model=self._model),
                 headers={"x-goog-api-key": self._key},
-                json=self._request_body(image_jpeg, claimed_category, description),
+                json=body,
             )
         except httpx.HTTPError as exc:
-            return self._failure(f"network error: {type(exc).__name__}")
+            raise _CallFailed(f"network error: {type(exc).__name__}") from exc
         if resp.status_code != 200:
-            return self._failure(f"HTTP {resp.status_code}")
+            raise _CallFailed(f"HTTP {resp.status_code}")
         try:
-            text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-            data = json.loads(text)
+            return json.loads(resp.json()["candidates"][0]["content"]["parts"][0]["text"])
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise _CallFailed(f"unexpected response: {type(exc).__name__}") from exc
+
+    def assess_fix(self, before_jpeg: bytes, after_jpeg: bytes, category: str) -> FixAssessment:
+        body = {
+            "contents": [{"parts": [
+                {"text": FIX_PROMPT.format(category=category)},
+                _image_part(before_jpeg),
+                _image_part(after_jpeg),
+            ]}],
+            "generationConfig": {"temperature": 0, "responseMimeType": "application/json",
+                                 "responseSchema": FIX_SCHEMA},
+        }
+        try:
+            data = self._call(body)
+            return FixAssessment(
+                self.name,
+                same_location=bool(data["same_location"]),
+                repaired=bool(data["repaired"]),
+                confidence=min(1.0, max(0.0, float(data["confidence"]))),
+                reason=str(data.get("reason", ""))[:300],
+            )
+        except _CallFailed as exc:
+            log.warning("Gemini fix check failed: %s", exc)
+            return FixAssessment(self.name, False, False, 0.0,
+                                 "Vision model unavailable.", error=str(exc))
+        except (KeyError, TypeError, ValueError) as exc:
+            return FixAssessment(self.name, False, False, 0.0, "Vision model unavailable.",
+                                 error=f"unexpected response: {type(exc).__name__}")
+
+    def assess_damage(
+        self, image_jpeg: bytes, claimed_category: str, description: str | None
+    ) -> VisionResult:
+        try:
+            data = self._call(self._request_body(image_jpeg, claimed_category, description))
+        except _CallFailed as exc:
+            return self._failure(str(exc))
+        try:
             return VisionResult(
                 provider=self.name,
                 is_road_infrastructure=bool(data["is_road_infrastructure"]),

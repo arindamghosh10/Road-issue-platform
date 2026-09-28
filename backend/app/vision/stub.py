@@ -10,7 +10,7 @@ from io import BytesIO
 import numpy as np
 from PIL import Image
 
-from app.vision.base import VisionResult
+from app.vision.base import FixAssessment, VisionResult
 
 TYPICAL_SEVERITY = {
     "road_cave_in": 5,
@@ -25,14 +25,27 @@ TYPICAL_SEVERITY = {
 }
 
 
+def _is_blank(image_jpeg: bytes) -> bool:
+    gray = np.asarray(Image.open(BytesIO(image_jpeg)).convert("L"), dtype=np.float32)
+    return bool(gray.std() < 5)
+
+
 class StubVisionVerifier:
     name = "stub"
+
+    def assess_fix(self, before_jpeg: bytes, after_jpeg: bytes, category: str) -> FixAssessment:
+        if _is_blank(after_jpeg):
+            return FixAssessment(self.name, same_location=False, repaired=False, confidence=0.9,
+                                 reason="After-photo is almost uniform (blank or covered lens).")
+        return FixAssessment(
+            self.name, same_location=True, repaired=True, confidence=0.5,
+            reason="Stub verifier: no model was called; set VISION_PROVIDER=gemini for real checks.",
+        )
 
     def assess_damage(
         self, image_jpeg: bytes, claimed_category: str, description: str | None
     ) -> VisionResult:
-        gray = np.asarray(Image.open(BytesIO(image_jpeg)).convert("L"), dtype=np.float32)
-        if gray.std() < 5:
+        if _is_blank(image_jpeg):
             return VisionResult(
                 provider=self.name,
                 is_road_infrastructure=False,

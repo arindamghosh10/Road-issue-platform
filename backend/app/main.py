@@ -3,14 +3,14 @@
 Routers:
 * /api/v1/citizen — OTP sign-in, report submission, "my reports" (Phase 1)
 * /api/v1/public  — categories, jurisdictions, tickets; no login, no identity data
-Government endpoints arrive in Phase 2.
+* /api/v1/gov     — official login, scoped work queue, ticket actions, fix proofs (Phase 2)
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.api import citizen, public
+from app.api import citizen, gov, public
 from app.config import get_settings
 from app.db import core_engine, vault_engine
 
@@ -23,6 +23,7 @@ app.add_middleware(
 )
 app.include_router(citizen.router)
 app.include_router(public.router)
+app.include_router(gov.router)
 
 
 @app.get("/health")

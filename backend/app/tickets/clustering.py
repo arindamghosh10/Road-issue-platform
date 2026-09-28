@@ -120,13 +120,15 @@ def attach_to_ticket(
             authority_id=placement.authority_id,
             road_segment_id=placement.road_segment_id,
             owner_node_id=placement.owner_node_id,
+            escalated_node_id=placement.lowest_node_id,
+            sla_started_at=now,
             sla_due_at=now + timedelta(hours=sla_hours(db, placement.jurisdiction_path, category, severity)),
         )
         db.add(ticket)
         db.flush()
         db.add(TicketEvent(
             ticket_id=ticket.id, type="ticket_created", actor_type=ActorType.SYSTEM.value,
-            payload={"category": category.code, "severity": severity},
+            payload={"category": category.code, "severity": severity, "public": True},
         ))
 
     report.ticket_id = ticket.id

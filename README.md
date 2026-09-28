@@ -8,8 +8,9 @@ publishes a public dashboard of what the government has fixed.
 **Reporters are verified but anonymous:** the platform knows each reporter is a real,
 unique citizen; the government never learns who they are.
 
-Full product brief: [`docs/brief.md`](docs/brief.md). Build status: **Phase 1 (reporting &
-verification backend) done**.
+Full product brief: [`docs/brief.md`](docs/brief.md). Build status: **Phase 2 (government
+workflow) done** — the backend is complete; dashboards (Phase 3) and the mobile app
+(Phase 4) are next.
 
 ## Repository layout
 
@@ -28,7 +29,7 @@ Requires Docker with Compose v2.24 or newer.
 
 ```bash
 cp .env.example .env               # optional; defaults work in dev
-docker compose up -d --build       # core DB, vault DB, Redis, MinIO, Mailpit, API, worker
+docker compose up -d --build       # DBs, Redis, MinIO, Mailpit, API, worker, scheduler
 docker compose exec api python -m app.seed    # load SAMPLE Kolkata data
 ```
 
@@ -47,9 +48,17 @@ Then open:
 
 Re-seed from scratch: `docker compose exec api python -m app.seed --reset`.
 
-Demo officials (password `roadwatch-demo`, dev only): `state@`, `district.kolkata@`,
-`kmc@`, `kmc.ward001@`, `kmc.ward002@`, `hmc@`, `nhai@`, `pwd@`, `admin@` — all
-`@demo.roadwatch.in`. Login arrives in Phase 2.
+Demo officials (password `roadwatch-demo`, dev only), all `@demo.roadwatch.in`:
+
+| Login | Sees |
+|---|---|
+| `state@` | all of West Bengal |
+| `district.kolkata@` | Kolkata district |
+| `kmc@` | all 144 KMC wards (also KMC roads authority) |
+| `kmc.ward001@`, `kmc.ward002@` | only their own ward |
+| `hmc@` | Howrah Municipal Corporation |
+| `nhai@`, `pwd@` | whole state (node) + roads their authority owns |
+| `admin@` | tenant admin, whole state |
 
 ### Try the citizen flow (what the mobile app will do)
 
@@ -67,6 +76,26 @@ The easiest way is the interactive docs at http://localhost:8000/docs.
    ticket reference) or `rejected` with the reason and each check's result.
 6. `GET /api/v1/public/tickets` shows what everyone sees: aggregates and cleaned photos,
    no identity.
+
+### Try the government flow
+
+1. `POST /api/v1/gov/auth/login` with `{"email": "kmc@demo.roadwatch.in", "password":
+   "roadwatch-demo"}` → token; click **Authorize** in the docs page.
+2. `GET /api/v1/gov/tickets` — the work queue for your area, most urgent first.
+3. `POST /api/v1/gov/tickets/{ref}/status` with `{"status": "acknowledged"}`, then
+   `in_progress`. Add notes (`/notes`, `public: true` shows them on the public timeline)
+   and assign (`/assignees`, `/assign`).
+4. `POST /api/v1/gov/tickets/{ref}/fix-proof` with an after-photo taken within 50 m of
+   the ticket. Accepted → `fix_submitted`, and each original reporter is asked
+   "Is this fixed?" (`GET /api/v1/citizen/confirmations`,
+   `POST /api/v1/citizen/tickets/{ref}/confirm` with `yes` / `no` / `partly`).
+5. Emails to officials land in Mailpit: http://localhost:8025.
+6. Optional 2FA: `POST /api/v1/gov/auth/2fa/setup`, put the `otpauth_uri` in an
+   authenticator app, then `POST /api/v1/gov/auth/2fa/enable` with a code.
+
+To see escalation without waiting days, push a ticket's deadline into the past:
+`docker compose exec core-db psql -U roadwatch_core -c "UPDATE tickets SET sla_due_at = now() - interval '1 hour'"`.
+Within 5 minutes the scheduler moves it one level up and alerts that level.
 
 ### Running tests
 
@@ -145,6 +174,33 @@ Known limits: the OpenCV face/plate detectors are basic and miss some angles and
 Indian plate styles; the stub vision verifier cannot really see damage (use Gemini for
 real checks); device attestation is a stub until the mobile app exists.
 
+## Government workflow (Phase 2)
+
+- **Who sees what:** an official attached to node N sees every ticket whose
+  jurisdiction path contains N (N and everything below it), plus — for road authorities
+  like NHAI — every ticket on roads they own. Tickets outside that scope return 404.
+  Enforced as a SQL condition in `app/gov/access.py`.
+- **Lifecycle:** `open → acknowledged → in_progress → fix_submitted → resolved`, or
+  `reopened` if reporters dispute the fix. Officials can only move a ticket as far as
+  `in_progress` by hand; `fix_submitted` needs an accepted fix proof and `resolved`
+  needs the close rule. Every action is recorded in the audit trail.
+- **SLA and escalation:** deadlines per category and severity (tenant-configurable).
+  The scheduler (`scheduler` service, every 5 min) warns at 80% of the time, and on a
+  breach moves responsibility one level up (ward → municipality → district → state),
+  restarts the clock there, alerts that level and records the breach publicly.
+- **Closing:** a fix proof is refused if taken more than 50 m away, more than 24 h ago,
+  or if the vision model says the damage is still there. Once accepted, reporters are
+  asked "Is this fixed?". Resolved when "yes" reaches 50% of reporters; reopened and
+  escalated when "no"/"partly" pass 50%. After 7 days it's decided on the answers
+  received; with no answers it resolves only if the vision check passed.
+  The government sees only counts ("2 of 3 confirmed"), never who answered.
+- **Notifications:** in-app inbox for everyone, email for officials, push (stub) for
+  citizens. Officials hear about new tickets, deadlines, escalations, assignments;
+  citizens hear about verification, fix confirmation requests and outcomes.
+
+Code map: `app/gov/access.py`, `app/tickets/lifecycle.py`, `app/tickets/sla.py`,
+`app/tickets/resolution.py`, `app/notifications/`, `app/api/gov.py`, `app/api/views.py`.
+
 ## Free services used
 
 | Need | Dev | When hosted |
@@ -170,7 +226,7 @@ boundaries (e.g. from DataMeet) before any pilot.
 
 0. **Foundation** ✓ repo layout, docker-compose, migrations, seed, README.
 1. **Reporting & verification** ✓ OTP stub, vault, uploads, photo sanitization, verification pipeline, clustering.
-2. Government workflow: official auth, scoped access, ticket lifecycle, SLA escalation, fix proof, notifications.
+2. **Government workflow** ✓ official auth + 2FA, scoped access, ticket lifecycle, SLA escalation, fix proof, reporter confirmation, notifications, CSV export.
 3. Web dashboards (public + government).
 4. Citizen mobile app.
 5. Hardening: rate limits, bans, attestation, access-control tests, load tests.

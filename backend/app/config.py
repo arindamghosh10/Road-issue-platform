@@ -84,6 +84,16 @@ class Settings(BaseSettings):
     # --- Email (Mailpit locally) ------------------------------------------------
     smtp_host: str = "localhost"
     smtp_port: int = 1025
+    email_backend: str = "smtp"  # "smtp" | "log" (tests: record instead of sending)
+    email_from: str = "RoadWatch <no-reply@roadwatch.local>"
+
+    # --- Government workflow ------------------------------------------------------
+    official_token_ttl_hours: int = 12
+    sla_sweep_interval_s: int = 300  # how often the scheduler checks deadlines
+    fix_proof_max_distance_m: float = 50.0  # default; tenants can override in config
+    fix_proof_max_age_hours: int = 24
+    confirmation_window_days: int = 7  # "no disputes within 7 days" closes the ticket
+    min_confirm_ratio: float = 0.5
 
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
 

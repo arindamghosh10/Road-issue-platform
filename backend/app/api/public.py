@@ -1,59 +1,18 @@
-"""Public (no login) API: categories, jurisdictions, tickets.
+"""Public (no login) API: categories, jurisdictions, tickets, ticket timelines.
 
-ANONYMITY: responses here are built field-by-field from explicit Pydantic models. They
-contain aggregates ("5 verified citizens reported this") and sanitized photos only —
-never reporter ids, report ids, phone numbers or exact capture times.
-tests/test_phase1_flow.py scans these responses to enforce that.
+ANONYMITY: responses are built by app/api/views.py from explicit models — aggregates and
+sanitized photos only, never reporter ids, report ids, phone numbers or exact times.
 """
 
-from datetime import date
-
 from fastapi import APIRouter, Depends, HTTPException, Query
-from geoalchemy2.shape import to_shape
-from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.api.views import PublicTicket, TimelineEntry, build_tickets, build_timeline
 from app.db import get_core_db
-from app.models.core import (
-    Authority,
-    Category,
-    Jurisdiction,
-    Report,
-    ReportStatus,
-    Ticket,
-    TicketStatus,
-)
-from app.storage import public_url
+from app.models.core import Category, Jurisdiction, Ticket, TicketStatus
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
-
-MAX_PHOTOS = 6
-
-
-class Area(BaseModel):
-    id: int
-    name: str
-    level: str
-
-
-class PublicTicket(BaseModel):
-    ref: str
-    category: str
-    category_name: str
-    status: str
-    severity: int
-    lat: float
-    lon: float
-    verified_reporters: int
-    report_count: int
-    reported_on: date
-    sla_due_on: date | None
-    resolved_on: date | None
-    escalation_level: int
-    authority: str | None
-    areas: list[Area]  # state → … → ward
-    photos: list[str]
 
 
 @router.get("/categories")
@@ -80,67 +39,14 @@ def list_jurisdictions(
     ]
 
 
-def _serialize(db: Session, tickets: list[Ticket]) -> list[PublicTicket]:
-    if not tickets:
-        return []
-    categories = {c.id: c for c in db.scalars(select(Category))}
-    authority_ids = {t.authority_id for t in tickets if t.authority_id}
-    authorities = {
-        a.id: a.name for a in db.scalars(select(Authority).where(Authority.id.in_(authority_ids)))
-    }
-    node_ids = {n for t in tickets for n in t.jurisdiction_path}
-    nodes = {j.id: j for j in db.scalars(select(Jurisdiction).where(Jurisdiction.id.in_(node_ids)))}
-    photo_rows = db.execute(
-        select(Report.ticket_id, Report.photo_public_key)
-        .where(
-            Report.ticket_id.in_([t.id for t in tickets]),
-            Report.status == ReportStatus.VERIFIED.value,
-            Report.photo_public_key.is_not(None),
-        )
-        .order_by(Report.received_at)
-    ).all()
-    photos: dict = {}
-    for ticket_id, key in photo_rows:
-        photos.setdefault(ticket_id, [])
-        if len(photos[ticket_id]) < MAX_PHOTOS:
-            photos[ticket_id].append(public_url(key))
-
-    out = []
-    for t in tickets:
-        point = to_shape(t.location)
-        category = categories[t.category_id]
-        out.append(PublicTicket(
-            ref=t.public_ref,
-            category=category.code,
-            category_name=category.name,
-            status=t.status,
-            severity=t.severity,
-            lat=round(point.y, 6),
-            lon=round(point.x, 6),
-            verified_reporters=t.unique_reporters,
-            report_count=t.report_count,
-            reported_on=t.created_at.date(),
-            sla_due_on=t.sla_due_at.date() if t.sla_due_at else None,
-            resolved_on=t.resolved_at.date() if t.resolved_at else None,
-            escalation_level=t.escalation_level,
-            authority=authorities.get(t.authority_id),
-            areas=[Area(id=nodes[n].id, name=nodes[n].name, level=nodes[n].level)
-                   for n in t.jurisdiction_path if n in nodes],
-            photos=photos.get(t.id, []),
-        ))
-    return out
-
-
-@router.get("/tickets", response_model=list[PublicTicket])
-def list_tickets(
-    status: TicketStatus | None = None,
-    category: str | None = None,
-    jurisdiction_id: int | None = Query(None, description="Only tickets inside this area"),
-    bbox: str | None = Query(None, description="min_lon,min_lat,max_lon,max_lat"),
-    limit: int = Query(200, ge=1, le=1000),
-    db: Session = Depends(get_core_db),
-) -> list[PublicTicket]:
-    query = select(Ticket).order_by(Ticket.priority.desc(), Ticket.created_at.desc()).limit(limit)
+def ticket_filters(
+    query,
+    status: TicketStatus | None,
+    category: str | None,
+    jurisdiction_id: int | None,
+    bbox: str | None,
+):
+    """Filters shared by the public and government ticket lists."""
     if status:
         query = query.where(Ticket.status == status.value)
     if category:
@@ -155,12 +61,36 @@ def list_tickets(
         query = query.where(func.ST_Intersects(
             Ticket.location, func.ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326)
         ))
-    return _serialize(db, list(db.scalars(query)))
+    return query
+
+
+@router.get("/tickets", response_model=list[PublicTicket])
+def list_tickets(
+    status: TicketStatus | None = None,
+    category: str | None = None,
+    jurisdiction_id: int | None = Query(None, description="Only tickets inside this area"),
+    bbox: str | None = Query(None, description="min_lon,min_lat,max_lon,max_lat"),
+    limit: int = Query(200, ge=1, le=1000),
+    db: Session = Depends(get_core_db),
+) -> list[PublicTicket]:
+    query = select(Ticket).order_by(Ticket.priority.desc(), Ticket.created_at.desc()).limit(limit)
+    query = ticket_filters(query, status, category, jurisdiction_id, bbox)
+    return build_tickets(db, list(db.scalars(query)))
+
+
+def _get(db: Session, ref: str) -> Ticket:
+    ticket = db.scalar(select(Ticket).where(Ticket.public_ref == ref))
+    if ticket is None:
+        raise HTTPException(404, "Ticket not found.")
+    return ticket
 
 
 @router.get("/tickets/{ref}", response_model=PublicTicket)
 def get_ticket(ref: str, db: Session = Depends(get_core_db)) -> PublicTicket:
-    ticket = db.scalar(select(Ticket).where(Ticket.public_ref == ref))
-    if ticket is None:
-        raise HTTPException(404, "Ticket not found.")
-    return _serialize(db, [ticket])[0]
+    return build_tickets(db, [_get(db, ref)])[0]
+
+
+@router.get("/tickets/{ref}/timeline", response_model=list[TimelineEntry])
+def get_timeline(ref: str, db: Session = Depends(get_core_db)) -> list[TimelineEntry]:
+    """Public history: status changes, public notes, escalations, fix, confirmation result."""
+    return build_timeline(db, _get(db, ref), gov=False)

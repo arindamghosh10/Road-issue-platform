@@ -115,6 +115,15 @@ services:
     depends_on:
       api: { condition: service_started }
 
+  # Scheduler: triggers the SLA sweep (warnings, escalations, confirmation windows)
+  # every SLA_SWEEP_INTERVAL_S seconds. Run exactly one of these.
+  scheduler:
+    <<: *backend
+    command: ["celery", "-A", "app.worker", "beat", "--loglevel=info",
+              "--schedule=/tmp/celerybeat-schedule"]
+    depends_on:
+      api: { condition: service_started }
+
 volumes:
   core-db-data:
   vault-db-data:

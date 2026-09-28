@@ -17,6 +17,7 @@ os.environ["STORAGE_BACKEND"] = "memory"
 os.environ["TASKS_EAGER"] = "true"
 os.environ["VISION_PROVIDER"] = "stub"
 os.environ["OTP_PROVIDER"] = "stub"
+os.environ["EMAIL_BACKEND"] = "log"
 TEST_CORE = os.environ.get("TEST_CORE_DATABASE_URL")
 TEST_VAULT = os.environ.get("TEST_VAULT_DATABASE_URL")
 if TEST_CORE and TEST_VAULT:
@@ -67,8 +68,10 @@ def clean_db(migrated_db):
 
     with core_engine().begin() as conn:
         conn.execute(text(
-            "TRUNCATE fix_confirmations, fix_proofs, ticket_events, reports, tickets, reporters CASCADE"
+            "TRUNCATE notifications, fix_confirmations, fix_proofs, ticket_events, reports, "
+            "tickets, reporters CASCADE"
         ))
+        conn.execute(text("UPDATE officials SET totp_enabled = false, totp_secret = NULL"))
     with vault_engine().begin() as conn:
         conn.execute(text("TRUNCATE reporter_links, otp_challenges, identities CASCADE"))
     get_store().objects.clear()

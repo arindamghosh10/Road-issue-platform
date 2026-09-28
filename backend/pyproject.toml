@@ -15,6 +15,7 @@ dependencies = [
     "cryptography>=42",
     "bcrypt>=4.1",
     "pyjwt>=2.8",
+    "pyotp>=2.9",
     "python-multipart>=0.0.9",
     "pillow>=10.3",
     # 4.x: OpenCV 5 no longer bundles the Haar face / number-plate detectors we use.

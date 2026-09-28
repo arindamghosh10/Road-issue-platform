@@ -27,6 +27,19 @@ def issue_citizen_token(reporter_id: str) -> str:
     return jwt.encode(claims, s.effective_jwt_secret, algorithm=ALGORITHM)
 
 
+def issue_official_token(official_id: str) -> str:
+    s = get_settings()
+    now = datetime.now(UTC)
+    claims = {
+        "jti": secrets.token_hex(8),
+        "sub": official_id,
+        "role": "official",
+        "iat": now,
+        "exp": now + timedelta(hours=s.official_token_ttl_hours),
+    }
+    return jwt.encode(claims, s.effective_jwt_secret, algorithm=ALGORITHM)
+
+
 def decode_token(token: str) -> dict:
     """Raises jwt.InvalidTokenError if the token is forged, malformed or expired."""
     return jwt.decode(token, get_settings().effective_jwt_secret, algorithms=[ALGORITHM])

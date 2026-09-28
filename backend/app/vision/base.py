@@ -30,9 +30,35 @@ class VisionResult:
         return asdict(self)
 
 
+@dataclass
+class FixAssessment:
+    """Before/after comparison for a government fix proof."""
+
+    provider: str
+    same_location: bool  # do both photos plausibly show the same spot?
+    repaired: bool  # is the damage from the "before" photo gone in the "after" photo?
+    confidence: float
+    reason: str
+    error: str | None = None
+
+    @property
+    def verdict(self) -> str:
+        """passed | failed | unavailable"""
+        if self.error:
+            return "unavailable"
+        return "passed" if self.same_location and self.repaired else "failed"
+
+    def as_dict(self) -> dict:
+        return asdict(self) | {"verdict": self.verdict}
+
+
 class VisionVerifier(Protocol):
     name: str
 
     def assess_damage(
         self, image_jpeg: bytes, claimed_category: str, description: str | None
     ) -> VisionResult: ...
+
+    def assess_fix(
+        self, before_jpeg: bytes, after_jpeg: bytes, category: str
+    ) -> FixAssessment: ...

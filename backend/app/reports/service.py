@@ -21,6 +21,7 @@ from app.config import get_settings
 from app.db import core_session
 from app.imaging.sanitize import InvalidImage, sanitize
 from app.models.core import Category, Report, ReportStatus
+from app.notifications.service import notify_officials, notify_reporter, officials_for_node
 from app.storage import get_store
 from app.tickets.clustering import attach_to_ticket
 from app.tickets.routing import locate
@@ -142,6 +143,8 @@ def process_report(report_id: uuid.UUID) -> None:
 
         if not verdict.verified:
             _reject(report, verdict.reason, details)
+            notify_reporter(db, report.reporter_id, None, "report_rejected",
+                            "Your report could not be verified", verdict.reason)
             db.commit()
             log.info("report %s rejected: %s", report.id, verdict.reason)
             return
@@ -153,6 +156,17 @@ def process_report(report_id: uuid.UUID) -> None:
         report.verification_details = details
         severity = vision_result.severity if not vision_result.error else 3
         ticket, created = attach_to_ticket(db, report, category, point.x, point.y, severity, placement)
+        notify_reporter(db, report.reporter_id, ticket, "report_verified",
+                        f"Report verified: {ticket.public_ref}",
+                        f"Your report is part of ticket {ticket.public_ref} "
+                        f"({ticket.unique_reporters} verified citizen(s) so far).")
+        if created:
+            notify_officials(
+                db, officials_for_node(db, placement.lowest_node_id, placement.authority_id),
+                ticket, "new_ticket", f"New issue: {category.name} ({ticket.public_ref})",
+                f"A verified {category.name.lower()} report was filed in your area. "
+                f"Deadline: {ticket.sla_due_at:%d %b %Y %H:%M} UTC.",
+            )
         db.commit()
         log.info("report %s verified → ticket %s (%s)", report.id, ticket.public_ref,
                  "new" if created else "merged")

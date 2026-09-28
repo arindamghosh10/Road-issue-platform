@@ -234,6 +234,9 @@ class Official(CoreBase):
     node_id: Mapped[int | None] = mapped_column(ForeignKey("jurisdictions.id"), index=True)
     authority_id: Mapped[int | None] = mapped_column(ForeignKey("authorities.id"))
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    # Two-factor login (TOTP: the 6-digit codes from Google Authenticator & similar apps).
+    totp_secret: Mapped[str | None] = mapped_column(String(64))
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     created_at: Mapped[datetime] = _created_at()
 
 
@@ -279,9 +282,18 @@ class Ticket(CoreBase):
     road_segment_id: Mapped[int | None] = mapped_column(ForeignKey("road_segments.id"))
     owner_node_id: Mapped[int | None] = mapped_column(ForeignKey("jurisdictions.id"), index=True)
     escalation_level: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
+    # The node currently answerable for the ticket: starts at the lowest node (ward) and
+    # moves one level up the jurisdiction path each time the SLA is breached.
+    escalated_node_id: Mapped[int | None] = mapped_column(ForeignKey("jurisdictions.id"))
+    assigned_official_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("officials.id"), index=True
+    )
     report_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     unique_reporters: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    sla_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sla_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    sla_warned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    fix_submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
@@ -355,6 +367,34 @@ class FixProof(CoreBase):
     vision_result: Mapped[dict] = mapped_column(
         JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
+    # False when the proof was refused (too far away, too old, vision says not repaired).
+    accepted: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = _created_at()
+
+
+class RecipientType(enum.StrEnum):
+    OFFICIAL = "official"
+    REPORTER = "reporter"  # recipient_id is the opaque reporter_id; never shown to gov
+
+
+class Notification(CoreBase):
+    """In-app notification (the inbox). Email/push copies are sent by app/notifications."""
+
+    __tablename__ = "notifications"
+    __table_args__ = (
+        CheckConstraint(in_enum("recipient_type", RecipientType), name="recipient_type"),
+        Index("ix_notifications_recipient", "recipient_type", "recipient_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    recipient_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    recipient_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    ticket_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tickets.id"))
+    kind: Mapped[str] = mapped_column(String(48), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _created_at()
 
 
