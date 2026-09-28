@@ -6,8 +6,11 @@ Routers:
 * /api/v1/gov     — official login, scoped work queue, ticket actions, fix proofs (Phase 2)
 """
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.api import citizen, gov, public
@@ -24,6 +27,15 @@ app.add_middleware(
 app.include_router(citizen.router)
 app.include_router(public.router)
 app.include_router(gov.router)
+
+_settings = get_settings()
+if _settings.storage_backend == "local":
+    # Running without MinIO: serve the PUBLIC (sanitized) photo folder only. Originals
+    # live in a different folder and are never exposed. Point S3_PUBLIC_BASE_URL at
+    # http://localhost:8000/media for this mode.
+    _public_dir = Path(_settings.local_storage_dir) / _settings.s3_bucket_public
+    _public_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/media", StaticFiles(directory=_public_dir), name="media")
 
 
 @app.get("/health")

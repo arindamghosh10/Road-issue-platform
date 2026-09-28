@@ -28,3 +28,9 @@ build/
 
 # Local photo storage (STORAGE_BACKEND=local)
 data/
+
+# Web build / test output
+.next/
+*.tsbuildinfo
+test-results/
+playwright-report/

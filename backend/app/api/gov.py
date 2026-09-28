@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
+from app.api import stats
 from app.api.deps import current_official
 from app.api.public import ticket_filters
 from app.api.views import GovTicket, TimelineEntry, build_tickets, build_timeline
@@ -27,6 +28,7 @@ from app.db import get_core_db
 from app.gov.access import get_scoped_ticket, ticket_scope
 from app.models.core import (
     Jurisdiction,
+    JurisdictionLevel,
     Notification,
     Official,
     OfficialRole,
@@ -63,6 +65,7 @@ class MeOut(BaseModel):
     name: str
     email: str
     role: str
+    node_id: int | None
     node: str | None
     node_level: str | None
     authority_id: int | None
@@ -84,7 +87,7 @@ def login(body: LoginIn, db: Session = Depends(get_core_db)) -> TokenOut:
 def me(official: Official = Depends(current_official), db: Session = Depends(get_core_db)) -> MeOut:
     node = db.get(Jurisdiction, official.node_id) if official.node_id else None
     return MeOut(id=official.id, name=official.name, email=official.email, role=official.role,
-                 node=node.name if node else None, node_level=node.level if node else None,
+                 node_id=official.node_id, node=node.name if node else None, node_level=node.level if node else None,
                  authority_id=official.authority_id, totp_enabled=official.totp_enabled)
 
 
@@ -134,11 +137,11 @@ def _require_actor(official: Official) -> None:
 
 
 def _queue_query(db: Session, official: Official, status, category, jurisdiction_id, bbox,
-                 open_only: bool):
+                 open_only: bool, days: int | None = None):
     query = select(Ticket).where(ticket_scope(db, official))
     if open_only and status is None:
         query = query.where(Ticket.status != TicketStatus.RESOLVED.value)
-    query = ticket_filters(query, status, category, jurisdiction_id, bbox)
+    query = ticket_filters(query, status, category, jurisdiction_id, bbox, days)
     # Work queue order: fix-submitted last (waiting on citizens), then highest priority,
     # then nearest deadline.
     waiting = case((Ticket.status == TicketStatus.FIX_SUBMITTED.value, 1), else_=0)
@@ -153,12 +156,13 @@ def work_queue(
     bbox: str | None = None,
     open_only: bool = Query(True, description="Hide resolved tickets unless status is given"),
     assigned_to_me: bool = False,
+    days: int | None = Query(None, ge=1, le=3650),
     limit: int = Query(200, ge=1, le=1000),
     official: Official = Depends(current_official),
     db: Session = Depends(get_core_db),
 ) -> list[GovTicket]:
     """Tickets in this official's area, most urgent first."""
-    query = _queue_query(db, official, status, category, jurisdiction_id, bbox, open_only)
+    query = _queue_query(db, official, status, category, jurisdiction_id, bbox, open_only, days)
     if assigned_to_me:
         query = query.where(Ticket.assigned_official_id == official.id)
     return build_tickets(db, list(db.scalars(query.limit(limit))), gov=True)
@@ -306,6 +310,64 @@ def fix_proof(
         raise HTTPException(exc.status_code, exc.message) from None
     db.commit()
     return build_tickets(db, [ticket], gov=True)[0]
+
+
+# --- Dashboard statistics (scoped to the official's area) ------------------------------
+
+
+def _scoped_where(db: Session, official: Official, jurisdiction_id, category, days):
+    return stats.filters(db, ticket_scope(db, official), jurisdiction_id, category, days)
+
+
+@router.get("/stats/summary", response_model=stats.Summary)
+def stats_summary(jurisdiction_id: int | None = None, category: str | None = None,
+                  days: int | None = Query(None, ge=1, le=3650),
+                  official: Official = Depends(current_official),
+                  db: Session = Depends(get_core_db)) -> stats.Summary:
+    return stats.summary(db, _scoped_where(db, official, jurisdiction_id, category, days))
+
+
+@router.get("/stats/areas", response_model=list[stats.AreaRow])
+def stats_areas(parent_id: int | None = None, level: JurisdictionLevel | None = None,
+                category: str | None = None, days: int | None = Query(None, ge=1, le=3650),
+                official: Official = Depends(current_official),
+                db: Session = Depends(get_core_db)) -> list[stats.AreaRow]:
+    """Drill-down: children of `parent_id` (default: the official's own area)."""
+    if parent_id is None and level is None:
+        parent_id = official.node_id
+    return stats.areas(db, _scoped_where(db, official, None, category, days), parent_id, level)
+
+
+@router.get("/stats/authorities", response_model=list[stats.AuthorityRow])
+def stats_authorities(jurisdiction_id: int | None = None, category: str | None = None,
+                      days: int | None = Query(None, ge=1, le=3650),
+                      official: Official = Depends(current_official),
+                      db: Session = Depends(get_core_db)) -> list[stats.AuthorityRow]:
+    return stats.authorities(db, _scoped_where(db, official, jurisdiction_id, category, days))
+
+
+@router.get("/stats/categories", response_model=list[stats.CategoryRow])
+def stats_categories(jurisdiction_id: int | None = None,
+                     days: int | None = Query(None, ge=1, le=3650),
+                     official: Official = Depends(current_official),
+                     db: Session = Depends(get_core_db)) -> list[stats.CategoryRow]:
+    return stats.categories(db, _scoped_where(db, official, jurisdiction_id, None, days))
+
+
+@router.get("/stats/trends", response_model=list[stats.TrendPoint])
+def stats_trends(jurisdiction_id: int | None = None, category: str | None = None,
+                 weeks: int = Query(12, ge=2, le=104),
+                 official: Official = Depends(current_official),
+                 db: Session = Depends(get_core_db)) -> list[stats.TrendPoint]:
+    return stats.trends(db, _scoped_where(db, official, jurisdiction_id, category, None), weeks)
+
+
+@router.get("/stats/ageing", response_model=list[stats.AgeingBucket])
+def stats_ageing(jurisdiction_id: int | None = None, category: str | None = None,
+                 official: Official = Depends(current_official),
+                 db: Session = Depends(get_core_db)) -> list[stats.AgeingBucket]:
+    """Open backlog by age."""
+    return stats.ageing(db, _scoped_where(db, official, jurisdiction_id, category, None))
 
 
 # --- Notifications ------------------------------------------------------------------

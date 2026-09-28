@@ -8,16 +8,16 @@ publishes a public dashboard of what the government has fixed.
 **Reporters are verified but anonymous:** the platform knows each reporter is a real,
 unique citizen; the government never learns who they are.
 
-Full product brief: [`docs/brief.md`](docs/brief.md). Build status: **Phase 2 (government
-workflow) done** — the backend is complete; dashboards (Phase 3) and the mobile app
-(Phase 4) are next.
+Full product brief: [`docs/brief.md`](docs/brief.md). Build status: **Phase 3 (web
+dashboards) done** — backend and dashboards are complete; the citizen mobile app
+(Phase 4) is next.
 
 ## Repository layout
 
 | Path | What |
 |---|---|
 | `backend/` | Python / FastAPI API, database models, migrations, seed script, tests |
-| `web/` | Public + government dashboards (Phase 3) |
+| `web/` | Next.js public + government dashboards (see `web/README.md`) |
 | `mobile/` | Citizen app (Phase 4) |
 | `infra/` | Deployment notes / manifests |
 | `docs/` | Product brief and design notes |
@@ -29,9 +29,13 @@ Requires Docker with Compose v2.24 or newer.
 
 ```bash
 cp .env.example .env               # optional; defaults work in dev
-docker compose up -d --build       # DBs, Redis, MinIO, Mailpit, API, worker, scheduler
-docker compose exec api python -m app.seed    # load SAMPLE Kolkata data
+docker compose up -d --build       # DBs, Redis, MinIO, Mailpit, API, worker, scheduler, web
+docker compose exec api python -m app.seed         # load SAMPLE Kolkata data
+docker compose exec api python -m app.seed.demo    # optional: ~80 DEMO tickets for the dashboards
 ```
+
+Then open **http://localhost:3000** for the dashboards (government sign-in: see the
+demo officials below).
 
 If you ran Phase 0 before, recreate the database volumes once so the test databases
 get created: `docker compose down -v && docker compose up -d --build` (this wipes local data).
@@ -40,6 +44,7 @@ Then open:
 
 | URL | What |
 |---|---|
+| http://localhost:3000 | Public dashboard; `/gov` for the government dashboard |
 | http://localhost:8000/health | Both databases reachable? |
 | http://localhost:8000/docs | Interactive API docs |
 | http://localhost:8000/api/v1/public/jurisdictions | Drill-down (add `?parent_id=1`) |
@@ -201,6 +206,24 @@ real checks); device attestation is a stub until the mobile app exists.
 Code map: `app/gov/access.py`, `app/tickets/lifecycle.py`, `app/tickets/sla.py`,
 `app/tickets/resolution.py`, `app/notifications/`, `app/api/gov.py`, `app/api/views.py`.
 
+## Dashboards (Phase 3)
+
+Public numbers come from `/api/v1/public/stats/*`, government numbers from
+`/api/v1/gov/stats/*`, which apply the same area scoping as the work queue, so an
+official's figures only count tickets they can see. Definitions:
+
+- **Open**: not yet resolved (includes in progress and fix awaiting confirmation).
+- **Average time to fix**: creation to resolution, resolved tickets only.
+- **Fixed within deadline**: of tickets whose deadline was "tested" (resolved, or the
+  deadline passed), the share that never missed a deadline.
+
+`python -m app.seed.demo` fills the dashboards with ~80 DEMO tickets spread over 12
+weeks (fake phones 90000xxxxx, synthetic photos, real verification pipeline). Dev only.
+
+Running without Docker: set `STORAGE_BACKEND=local` and
+`S3_PUBLIC_BASE_URL=http://localhost:8000/media`; the API then serves the sanitized
+photo folder (never the originals).
+
 ## Free services used
 
 | Need | Dev | When hosted |
@@ -227,6 +250,6 @@ boundaries (e.g. from DataMeet) before any pilot.
 0. **Foundation** ✓ repo layout, docker-compose, migrations, seed, README.
 1. **Reporting & verification** ✓ OTP stub, vault, uploads, photo sanitization, verification pipeline, clustering.
 2. **Government workflow** ✓ official auth + 2FA, scoped access, ticket lifecycle, SLA escalation, fix proof, reporter confirmation, notifications, CSV export.
-3. Web dashboards (public + government).
+3. **Web dashboards** ✓ public dashboard (figures, map, trends, leaderboards, drill-down, ticket pages) and government dashboard (scoped queue, map, drill-down, ageing, actions, CSV export).
 4. Citizen mobile app.
 5. Hardening: rate limits, bans, attestation, access-control tests, load tests.
