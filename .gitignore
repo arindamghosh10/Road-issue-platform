@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Env / secrets — never commit real keys (see README "Key custody")
+.env
+*.key
+
+# Node (web / mobile, later phases)
+node_modules/
+.next/
+.expo/
+dist/
+build/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
