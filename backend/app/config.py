@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     s3_secret_key: str = "roadwatch_dev_pw"
     s3_bucket_original: str = "photos-original"  # raw uploads, never shown to gov/public
     s3_bucket_public: str = "photos-public"  # sanitized copies (EXIF stripped, blurred)
+    # Base URL browsers use to fetch public photos.
+    s3_public_base_url: str = "http://localhost:9000/photos-public"
+    storage_backend: str = "s3"  # "s3" | "local" (folder on disk) | "memory" (tests)
+    local_storage_dir: str = "./data/objects"
 
     # --- Identity vault secrets (held by the platform, NEVER by gov tenants) ---
     # Fernet key used to encrypt phone numbers at rest in the vault.
@@ -42,10 +46,37 @@ class Settings(BaseSettings):
     # Secret "pepper" for keyed hashes (HMAC) of phone / Aadhaar. See app/security.
     identity_hash_pepper: str | None = None
 
+    # --- Citizen auth -----------------------------------------------------------
+    jwt_secret: str | None = None
+    citizen_token_ttl_hours: int = 24 * 30
+    otp_ttl_minutes: int = 5
+    otp_max_attempts: int = 5
+    otp_max_requests_per_hour: int = 5
+
+    # --- Background jobs ----------------------------------------------------------
+    # True: verification runs inside the upload request (tests, simple demos).
+    # False: queued to the Celery worker via Redis.
+    tasks_eager: bool = False
+
+    # --- Verification pipeline (see app/verification) -----------------------------
+    verification_threshold: float = 0.6
+    max_upload_mb: int = 10
+    max_gps_accuracy_m: float = 50.0  # worse than this lowers the score
+    reject_gps_accuracy_m: float = 150.0  # worse than this is rejected outright
+    max_photo_age_hours: int = 24
+    road_snap_max_m: float = 50.0
+    # Sample data has only a few road segments, so "not near a mapped road" only lowers
+    # the score. Turn on once a full OSM road network has been imported.
+    require_road_snap: bool = False
+    require_attestation: bool = False  # Play Integrity / App Attest (stubbed)
+    duplicate_phash_max_distance: int = 6  # bits of 64; lower = stricter "same photo"
+
     # --- Pluggable external services ------------------------------------------
     vision_provider: str = "stub"  # "stub" | "gemini"
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.0-flash"
+    # Any Gemini model that accepts images; check https://ai.google.dev for current names.
+    gemini_model: str = "gemini-2.5-flash"
+    gemini_timeout_s: float = 30.0
     otp_provider: str = "stub"  # code is printed to the server log
     street_level_provider: str = "none"  # "none" | "mapillary"
     mapillary_token: str | None = None
@@ -73,6 +104,10 @@ class Settings(BaseSettings):
     @property
     def effective_pepper(self) -> str:
         return self.identity_hash_pepper or self._dev_fallback("identity_hash_pepper")
+
+    @property
+    def effective_jwt_secret(self) -> str:
+        return self.jwt_secret or self._dev_fallback("jwt_secret")
 
 
 @lru_cache

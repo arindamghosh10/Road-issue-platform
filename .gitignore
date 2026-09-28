@@ -25,3 +25,6 @@ build/
 .idea/
 .vscode/
 .DS_Store
+
+# Local photo storage (STORAGE_BACKEND=local)
+data/

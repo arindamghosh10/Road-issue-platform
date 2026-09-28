@@ -8,7 +8,8 @@ publishes a public dashboard of what the government has fixed.
 **Reporters are verified but anonymous:** the platform knows each reporter is a real,
 unique citizen; the government never learns who they are.
 
-Full product brief: [`docs/brief.md`](docs/brief.md). Build status: **Phase 0 (foundation)**.
+Full product brief: [`docs/brief.md`](docs/brief.md). Build status: **Phase 1 (reporting &
+verification backend) done**.
 
 ## Repository layout
 
@@ -27,9 +28,12 @@ Requires Docker with Compose v2.24 or newer.
 
 ```bash
 cp .env.example .env               # optional; defaults work in dev
-docker compose up -d --build       # core DB, vault DB, Redis, MinIO, Mailpit, API
+docker compose up -d --build       # core DB, vault DB, Redis, MinIO, Mailpit, API, worker
 docker compose exec api python -m app.seed    # load SAMPLE Kolkata data
 ```
+
+If you ran Phase 0 before, recreate the database volumes once so the test databases
+get created: `docker compose down -v && docker compose up -d --build` (this wipes local data).
 
 Then open:
 
@@ -47,13 +51,32 @@ Demo officials (password `roadwatch-demo`, dev only): `state@`, `district.kolkat
 `kmc@`, `kmc.ward001@`, `kmc.ward002@`, `hmc@`, `nhai@`, `pwd@`, `admin@` — all
 `@demo.roadwatch.in`. Login arrives in Phase 2.
 
+### Try the citizen flow (what the mobile app will do)
+
+The easiest way is the interactive docs at http://localhost:8000/docs.
+
+1. `POST /api/v1/citizen/auth/otp/request` with `{"phone": "9876543210"}`.
+2. Read the code from the API log: `docker compose logs api | grep "OTP STUB"`.
+3. `POST /api/v1/citizen/auth/otp/verify` with the `challenge_id` and code → a token.
+   Click **Authorize** in the docs page and paste the token.
+4. `POST /api/v1/citizen/reports` with a photo, `category=pothole`, a location inside
+   Kolkata (e.g. `lat=22.5431`, `lon=88.3552`), `gps_accuracy_m=8`, `captured_at` = now
+   in ISO format with timezone (e.g. `2026-09-28T10:00:00Z`) and
+   `capture_source=in_app_camera`. It returns `under_verification`.
+5. A few seconds later `GET /api/v1/citizen/reports/{id}` shows `verified` (with the
+   ticket reference) or `rejected` with the reason and each check's result.
+6. `GET /api/v1/public/tickets` shows what everyone sees: aggregates and cleaned photos,
+   no identity.
+
 ### Running tests
 
 ```bash
 docker compose exec api pytest
-# or locally:
-cd backend && pip install -e ".[dev]" && pytest
 ```
+
+Tests use the separate `roadwatch_core_test` / `roadwatch_vault_test` databases (created
+automatically on first start), so they never touch your dev data. Without those
+databases configured, only the unit tests run and the database tests are skipped.
 
 ## Architecture: two databases on purpose
 
@@ -95,12 +118,39 @@ and the vault database can re-identify reporters, so:
 In dev, empty values fall back to deterministic dev-only keys (with a warning). With
 `APP_ENV=prod` the app refuses to start without real keys.
 
+## How a report is verified (Phase 1)
+
+```
+upload ─▶ original photo → private bucket, report = under_verification
+            │  (queued to the worker via Redis)
+            ▼
+worker ─▶ sanitize: strip EXIF, blur faces & number plates, perceptual hash
+       ─▶ checks (each gives a score 0–1 and a reason):
+            capture_integrity  in-app camera only, fresh (<24 h), GPS accurate
+            location           inside a known ward; near a mapped road
+            vision             stub or Gemini: is this the claimed damage? severity 1–5
+            duplicate_image    same photo not submitted before
+       ─▶ any hard failure → rejected with reason
+          weighted score ≥ 0.6 → verified
+       ─▶ verified: publish cleaned photo, merge into a ticket within 30 m
+          (150 m for bridges) or open a new one, routed to
+          ward → municipality → district → state + road authority, with an SLA deadline
+```
+
+Code map: `app/imaging` (sanitize), `app/verification` (checks + scoring),
+`app/vision` (stub + Gemini), `app/tickets` (routing, clustering, priority),
+`app/identity` (OTP + vault; the only code that touches the vault), `app/api`.
+
+Known limits: the OpenCV face/plate detectors are basic and miss some angles and
+Indian plate styles; the stub vision verifier cannot really see damage (use Gemini for
+real checks); device attestation is a stub until the mobile app exists.
+
 ## Free services used
 
 | Need | Dev | When hosted |
 |---|---|---|
 | Vision model | offline `stub` | Gemini API free tier (`VISION_PROVIDER=gemini`) |
-| Photo storage | MinIO | Cloudflare R2 free tier |
+| Photo storage | MinIO (or `STORAGE_BACKEND=local` folder) | Cloudflare R2 free tier |
 | Email | Mailpit | Brevo free tier |
 | OTP | stub (code in server log) | Deferred to pilot |
 | Maps / roads | OpenStreetMap | OpenStreetMap / OpenFreeMap |
@@ -118,8 +168,8 @@ boundaries (e.g. from DataMeet) before any pilot.
 
 ## Build phases
 
-0. **Foundation** ← current: repo layout, docker-compose, migrations, seed, README.
-1. Reporting & verification: OTP stub, vault, uploads, photo sanitization, verification pipeline, clustering.
+0. **Foundation** ✓ repo layout, docker-compose, migrations, seed, README.
+1. **Reporting & verification** ✓ OTP stub, vault, uploads, photo sanitization, verification pipeline, clustering.
 2. Government workflow: official auth, scoped access, ticket lifecycle, SLA escalation, fix proof, notifications.
 3. Web dashboards (public + government).
 4. Citizen mobile app.
