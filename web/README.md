@@ -2,4 +2,5 @@
 
 Public dashboard and government dashboard. Built in **Phase 3**.
 
-The frontend stack is still to be confirmed (see `docs/brief.md` §0).
+Stack: Next.js + TypeScript, MapLibre GL (OpenStreetMap / OpenFreeMap tiles), Recharts.
+Talks to the FastAPI backend in `backend/`.

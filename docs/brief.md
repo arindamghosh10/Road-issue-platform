@@ -10,7 +10,7 @@
 | Topic | Decision |
 |---|---|
 | Cost | **Free services only** for now. Every external service stays behind an interface so a paid one can be swapped in later by config. |
-| Language | **Python** (backend, workers, scripts). Web/mobile stack to be confirmed before Phase 3/4. |
+| Language | **Python** for backend, workers and scripts. **Next.js** (TypeScript) for the public and government dashboards, **React Native (Expo)** for the citizen app — chosen for visual quality. |
 | Vision model | **Google Gemini API free tier** for the demo (`VISION_PROVIDER=gemini`). A deterministic offline `stub` provider is the default so the stack runs with no keys. Only **sanitized** (EXIF-stripped, face/plate-blurred) images are ever sent to Gemini, because free-tier data may be used by Google to improve its products. |
 | Face / plate blur | OpenCV (local, free). |
 | Maps | MapLibre + OpenStreetMap / OpenFreeMap tiles. |
@@ -190,8 +190,8 @@ Use PostGIS `ST_DWithin` and/or H3 cell indexing. Report count and unique report
 | Object storage | S3-compatible (MinIO locally, R2 when hosted) | Photo originals and sanitized versions in separate buckets |
 | Vision | Gemini free tier behind `VisionVerifier` interface | Free for the demo; swappable |
 | Image processing | Pillow, OpenCV | Sanitization |
-| Citizen app | React Native (Expo) — *to be confirmed, see §0* | Camera + GPS |
-| Gov & public web | Next.js + MapLibre GL — *to be confirmed, see §0* | Maps and dashboards |
+| Citizen app | **React Native (Expo)** | One codebase for Android/iOS; camera + GPS |
+| Gov & public web | **Next.js + TypeScript**, MapLibre GL, Recharts | Maps and dashboards |
 | Auth | Phone OTP for citizens (stubbed), email+password + 2FA for officials, JWT | |
 | Infra | Docker + docker-compose | |
 | Tests | pytest, Playwright for web | |
