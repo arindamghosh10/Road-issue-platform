@@ -25,6 +25,7 @@ export interface PublicTicket {
   lon: number;
   verified_reporters: number;
   report_count: number;
+  also_seen: number; // "I see this too" confirmations on site (no photo)
   reported_on: string;
   sla_due_on: string | null;
   resolved_on: string | null;

@@ -5,18 +5,21 @@ identity details — those stay in the vault.
 """
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.api.deps import current_reporter_id
 from app.api.gov import NotificationOut, notification_rows
+from app.api.views import PublicTicket, build_tickets
 from app.db import get_core_db
 from app.identity.service import AuthError, request_otp, verify_otp
 from app.models.core import (
+    ActorType,
     Category,
     FixConfirmation,
     FixProof,
@@ -24,12 +27,16 @@ from app.models.core import (
     RecipientType,
     Report,
     ReportStatus,
+    RoadSegment,
     Ticket,
+    TicketEvent,
+    TicketSighting,
     TicketStatus,
 )
 from app.reports.service import NewReport, ReportError, create_report, enqueue_processing
 from app.security.tokens import issue_citizen_token
 from app.storage import public_url
+from app.tickets.priority import compute_priority
 from app.tickets.resolution import ConfirmationError, record_confirmation
 
 router = APIRouter(prefix="/api/v1/citizen", tags=["citizen"])
@@ -217,6 +224,102 @@ def confirm_fix(
         raise HTTPException(exc.status_code, exc.message) from None
     db.commit()
     return ConfirmOut(ticket_ref=ticket.public_ref, ticket_status=status_after)
+
+
+SIGHTING_MAX_DISTANCE_M = 150.0
+SIGHTING_MAX_ACCURACY_M = 100.0
+
+
+class NearbyTicket(PublicTicket):
+    distance_m: float
+    i_reported: bool
+    i_saw: bool
+
+
+@router.get("/tickets/nearby", response_model=list[NearbyTicket])
+def nearby_tickets(
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+    radius_m: float = Query(1500, gt=0, le=5000),
+    reporter_id: str = Depends(current_reporter_id),
+    db: Session = Depends(get_core_db),
+) -> list[NearbyTicket]:
+    """Issues around me, nearest first: unresolved ones plus those fixed in the last 30 days."""
+    here = func.ST_SetSRID(func.ST_MakePoint(lon, lat), 4326)
+    distance = func.ST_Distance(func.Geography(Ticket.location), func.Geography(here))
+    recent_fix = Ticket.resolved_at >= datetime.now(UTC) - timedelta(days=30)
+    rows = db.execute(
+        select(Ticket, distance)
+        .where(func.ST_DWithin(func.Geography(Ticket.location), func.Geography(here), radius_m),
+               (Ticket.status != TicketStatus.RESOLVED.value) | recent_fix)
+        .order_by(distance).limit(100)
+    ).all()
+    tickets = [t for t, _ in rows]
+    ids = [t.id for t in tickets]
+    mine = set(db.scalars(select(Report.ticket_id).where(
+        Report.reporter_id == reporter_id, Report.ticket_id.in_(ids)))) if ids else set()
+    seen = set(db.scalars(select(TicketSighting.ticket_id).where(
+        TicketSighting.reporter_id == reporter_id, TicketSighting.ticket_id.in_(ids)))) if ids else set()
+    views = build_tickets(db, tickets)
+    return [NearbyTicket(**v.model_dump(), distance_m=round(float(d), 1),
+                         i_reported=t.id in mine, i_saw=t.id in seen)
+            for v, (t, d) in zip(views, rows, strict=True)]
+
+
+class SightingIn(BaseModel):
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    gps_accuracy_m: float = Field(gt=0)
+
+
+class SightingOut(BaseModel):
+    ticket_ref: str
+    also_seen: int
+
+
+@router.post("/tickets/{ref}/seen", response_model=SightingOut)
+def i_see_this_too(
+    ref: str,
+    body: SightingIn,
+    reporter_id: str = Depends(current_reporter_id),
+    db: Session = Depends(get_core_db),
+) -> SightingOut:
+    """ "I see this too": confirm an existing issue while standing near it (no photo).
+    One per citizen per ticket; counts publicly as a sighting, not a verified report."""
+    ticket = db.scalar(select(Ticket).where(Ticket.public_ref == ref).with_for_update())
+    if ticket is None:
+        raise HTTPException(404, "Ticket not found.")
+    if ticket.status == TicketStatus.RESOLVED.value:
+        raise HTTPException(409, "This issue is already resolved.")
+    if body.gps_accuracy_m > SIGHTING_MAX_ACCURACY_M:
+        raise HTTPException(422, "GPS location is too imprecise. Try again outdoors.")
+    if db.scalar(select(Report.id).where(Report.ticket_id == ticket.id,
+                                         Report.reporter_id == reporter_id).limit(1)):
+        raise HTTPException(409, "You already reported this issue.")
+    here = func.ST_SetSRID(func.ST_MakePoint(body.lon, body.lat), 4326)
+    distance = float(db.scalar(select(func.ST_Distance(
+        func.Geography(Ticket.location), func.Geography(here))).where(Ticket.id == ticket.id)))
+    if distance > SIGHTING_MAX_DISTANCE_M:
+        raise HTTPException(422, f"You need to be within {SIGHTING_MAX_DISTANCE_M:.0f} m of the issue "
+                                 f"(you are about {distance:.0f} m away).")
+    inserted = db.execute(
+        insert(TicketSighting)
+        .values(ticket_id=ticket.id, reporter_id=reporter_id, distance_m=round(distance, 1))
+        .on_conflict_do_nothing()
+        .returning(TicketSighting.ticket_id)
+    ).first()
+    if inserted is None:
+        raise HTTPException(409, "You already confirmed this issue.")
+    ticket.seen_count += 1
+    road_class = (db.scalar(select(RoadSegment.road_class).where(RoadSegment.id == ticket.road_segment_id))
+                  if ticket.road_segment_id else None)
+    ticket.priority = compute_priority(
+        ticket.severity, ticket.unique_reporters, road_class,
+        (datetime.now(UTC) - ticket.created_at).total_seconds() / 86400, ticket.seen_count)
+    db.add(TicketEvent(ticket_id=ticket.id, type="sighting", actor_type=ActorType.CITIZEN.value,
+                       actor_id=reporter_id, payload={"also_seen": ticket.seen_count}))
+    db.commit()
+    return SightingOut(ticket_ref=ticket.public_ref, also_seen=ticket.seen_count)
 
 
 @router.get("/notifications", response_model=list[NotificationOut])

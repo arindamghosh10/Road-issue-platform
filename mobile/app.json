@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "RoadWatch",
+    "slug": "roadwatch",
+    "scheme": "roadwatch",
+    "version": "0.4.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "in.roadwatch.citizen"
+    },
+    "android": {
+      "package": "in.roadwatch.citizen",
+      "adaptiveIcon": {
+        "backgroundColor": "#2a78d6",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "RoadWatch uses the camera to photograph road and bridge damage you report. Photos are taken in the app only; your gallery is never accessed.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "RoadWatch records where each photo is taken so the right ward and authority get the report, and to show issues near you."
+        }
+      ]
+    ]
+  }
+}

@@ -47,6 +47,7 @@ class PublicTicket(BaseModel):
     lon: float
     verified_reporters: int
     report_count: int
+    also_seen: int  # "I see this too" taps by citizens on site (no photo)
     reported_on: date
     sla_due_on: date | None
     resolved_on: date | None
@@ -118,6 +119,7 @@ def build_tickets(db: Session, tickets: list[Ticket], gov: bool = False) -> list
             "lon": round(point.x, 6),
             "verified_reporters": t.unique_reporters,
             "report_count": t.report_count,
+            "also_seen": t.seen_count,
             "reported_on": t.created_at.date(),
             "sla_due_on": t.sla_due_at.date() if t.sla_due_at else None,
             "resolved_on": t.resolved_at.date() if t.resolved_at else None,
@@ -148,7 +150,7 @@ def build_tickets(db: Session, tickets: list[Ticket], gov: bool = False) -> list
 SAFE_PAYLOAD_KEYS = {
     "category", "severity", "report_count", "unique_reporters", "from_status", "to_status",
     "note", "reason", "escalation_level", "to_node", "to_level", "at_top", "vision",
-    "confirmed", "disputed", "reporters", "photo", "assigned_to",
+    "confirmed", "disputed", "reporters", "photo", "assigned_to", "also_seen",
 }
 
 

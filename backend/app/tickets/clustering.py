@@ -145,7 +145,7 @@ def attach_to_ticket(
     ticket.severity = max(ticket.severity, severity)
     age_days = 0.0 if created else (now - ticket.created_at).total_seconds() / 86400
     ticket.priority = compute_priority(
-        ticket.severity, ticket.unique_reporters, placement.road_class, age_days
+        ticket.severity, ticket.unique_reporters, placement.road_class, age_days, ticket.seen_count or 0
     )
     db.add(TicketEvent(
         ticket_id=ticket.id, type="report_attached",

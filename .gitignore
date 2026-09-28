@@ -34,3 +34,9 @@ data/
 *.tsbuildinfo
 test-results/
 playwright-report/
+
+# Mobile (Expo) build output
+.expo/
+dist-web/
+web-build/
+expo-env.d.ts

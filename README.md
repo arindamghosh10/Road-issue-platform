@@ -8,9 +8,9 @@ publishes a public dashboard of what the government has fixed.
 **Reporters are verified but anonymous:** the platform knows each reporter is a real,
 unique citizen; the government never learns who they are.
 
-Full product brief: [`docs/brief.md`](docs/brief.md). Build status: **Phase 3 (web
-dashboards) done** — backend and dashboards are complete; the citizen mobile app
-(Phase 4) is next.
+Full product brief: [`docs/brief.md`](docs/brief.md). Build status: **Phase 4 (citizen
+mobile app) done** — backend, dashboards and the citizen app are complete; hardening
+(Phase 5) is next.
 
 ## Repository layout
 
@@ -18,7 +18,7 @@ dashboards) done** — backend and dashboards are complete; the citizen mobile a
 |---|---|
 | `backend/` | Python / FastAPI API, database models, migrations, seed script, tests |
 | `web/` | Next.js public + government dashboards (see `web/README.md`) |
-| `mobile/` | Citizen app (Phase 4) |
+| `mobile/` | Expo / React Native citizen app (see `mobile/README.md`) |
 | `infra/` | Deployment notes / manifests |
 | `docs/` | Product brief and design notes |
 | `docker-compose.yml` | Local stack |
@@ -224,6 +224,24 @@ Running without Docker: set `STORAGE_BACKEND=local` and
 `S3_PUBLIC_BASE_URL=http://localhost:8000/media`; the API then serves the sanitized
 photo folder (never the originals).
 
+## Citizen app (Phase 4)
+
+`mobile/` is an Expo (React Native) app; try it on a phone with the free Expo Go app
+(steps in `mobile/README.md`). New backend pieces for it:
+
+- `GET /api/v1/citizen/tickets/nearby` — issues around the citizen, nearest first, with
+  "you reported this" / "you confirmed this" flags.
+- `POST /api/v1/citizen/tickets/{ref}/seen` — **"I see this too"**: allowed only within
+  150 m of the issue with decent GPS, once per citizen, not for your own reports. It is
+  shown as "also seen by N" and adds a little to priority, but does **not** count as a
+  verified report (no photo).
+
+**Decision needed before real push notifications:** sending a push to a citizen's phone
+needs that phone's push token stored against their reporter id. The token identifies a
+device, so storing it in the ticket database would weaken "a dump of core-db identifies
+nobody". Options: keep tokens in the identity vault and let only the notifier read them
+there (recommended), or keep in-app inbox only. Push stays stubbed until you choose.
+
 ## Free services used
 
 | Need | Dev | When hosted |
@@ -251,5 +269,5 @@ boundaries (e.g. from DataMeet) before any pilot.
 1. **Reporting & verification** ✓ OTP stub, vault, uploads, photo sanitization, verification pipeline, clustering.
 2. **Government workflow** ✓ official auth + 2FA, scoped access, ticket lifecycle, SLA escalation, fix proof, reporter confirmation, notifications, CSV export.
 3. **Web dashboards** ✓ public dashboard (figures, map, trends, leaderboards, drill-down, ticket pages) and government dashboard (scoped queue, map, drill-down, ageing, actions, CSV export).
-4. Citizen mobile app.
+4. **Citizen mobile app** ✓ OTP sign-in, camera-only reporting with GPS, live verification status, my reports, nearby map with "I see this too", inbox with fix confirmation.
 5. Hardening: rate limits, bans, attestation, access-control tests, load tests.

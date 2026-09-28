@@ -36,7 +36,7 @@ export default function PublicTicketPage() {
 
       <section className="kpis" aria-label="Ticket facts">
         <div className="tile"><div className="tile-label">Verified citizens</div><div className="tile-value">{tk.verified_reporters}</div>
-          <div className="tile-note">{tk.report_count} report(s) merged into this ticket</div></div>
+          <div className="tile-note">{tk.report_count} report(s) merged{tk.also_seen ? ` · ${tk.also_seen} more saw it on site` : ""}</div></div>
         <div className="tile"><div className="tile-label">Severity</div><div className="tile-value">{tk.severity} / 5</div></div>
         <div className="tile"><div className="tile-label">{t("ticket.deadline")}</div><div className="tile-value" style={{ fontSize: 20 }}>{fmtDate(tk.sla_due_on)}</div>
           {tk.escalation_level > 0 && <div className="tile-note">{t("ticket.escalated", { n: tk.escalation_level })}</div>}</div>

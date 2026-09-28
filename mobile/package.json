@@ -1,0 +1,38 @@
+{
+  "name": "roadwatch-mobile",
+  "version": "0.4.0",
+  "main": "expo-router/entry",
+  "dependencies": {
+    "@expo/metro-runtime": "~57.0.16",
+    "expo": "~57.0.25",
+    "expo-camera": "~57.0.5",
+    "expo-constants": "~57.0.19",
+    "expo-linking": "~57.0.11",
+    "expo-location": "~57.0.20",
+    "expo-router": "~57.0.23",
+    "expo-secure-store": "~57.0.4",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-web": "~0.21.0",
+    "react-native-webview": "13.16.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types tests/*.test.ts && node scripts/check-no-gallery.mjs"
+  },
+  "private": true,
+  "description": "RoadWatch citizen app: report road and bridge damage with the in-app camera"
+}

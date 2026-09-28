@@ -68,7 +68,7 @@ def clean_db(migrated_db):
 
     with core_engine().begin() as conn:
         conn.execute(text(
-            "TRUNCATE notifications, fix_confirmations, fix_proofs, ticket_events, reports, "
+            "TRUNCATE ticket_sightings, notifications, fix_confirmations, fix_proofs, ticket_events, reports, "
             "tickets, reporters CASCADE"
         ))
         conn.execute(text("UPDATE officials SET totp_enabled = false, totp_secret = NULL"))

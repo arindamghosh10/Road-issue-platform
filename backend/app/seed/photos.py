@@ -38,3 +38,21 @@ def blank_photo() -> bytes:
     buf = BytesIO()
     Image.new("RGB", (640, 480), (128, 128, 128)).save(buf, format="JPEG")
     return buf.getvalue()
+
+
+def write_fake_camera_video(path: str, seed: int | None = None, frames: int = 30) -> None:
+    """Write a Motion-JPEG file Chromium can use as a fake camera
+    (--use-file-for-fake-video-capture=path.mjpeg). Each call with a new seed gives a
+    different 'pothole', so end-to-end tests don't trip the duplicate-photo check."""
+    import random
+
+    photo = road_photo(seed if seed is not None else random.randrange(10**9), with_exif=False)
+    with open(path, "wb") as f:
+        f.writelines(photo for _ in range(frames))
+
+
+if __name__ == "__main__":
+    import sys
+
+    write_fake_camera_video(sys.argv[1] if len(sys.argv) > 1 else "fake-camera.mjpeg")
+    print("wrote", sys.argv[1] if len(sys.argv) > 1 else "fake-camera.mjpeg")

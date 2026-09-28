@@ -56,7 +56,8 @@ def run_sla_sweep(now: datetime | None = None) -> SweepResult:
                                     .where(RoadSegment.id == ticket.road_segment_id))
                           if ticket.road_segment_id else None)
             ticket.priority = compute_priority(ticket.severity, ticket.unique_reporters, road_class,
-                                               (now - ticket.created_at).total_seconds() / 86400)
+                                               (now - ticket.created_at).total_seconds() / 86400,
+                                               ticket.seen_count)
 
             if ticket.sla_due_at <= now:
                 overdue_h = (now - ticket.sla_due_at).total_seconds() / 3600

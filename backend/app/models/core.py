@@ -290,6 +290,8 @@ class Ticket(CoreBase):
     )
     report_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     unique_reporters: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    # Citizens who tapped "I see this too" on site (lighter signal than a photo report).
+    seen_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     sla_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sla_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     sla_warned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -395,6 +397,19 @@ class Notification(CoreBase):
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = _created_at()
+
+
+class TicketSighting(CoreBase):
+    """ "I see this too": a signed-in citizen, physically near the issue, confirms it exists
+    without a new photo. One per citizen per ticket. Gov/public only ever see the count."""
+
+    __tablename__ = "ticket_sightings"
+    __table_args__ = (PrimaryKeyConstraint("ticket_id", "reporter_id"),)
+
+    ticket_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tickets.id"), nullable=False)
+    reporter_id: Mapped[str] = mapped_column(ForeignKey("reporters.reporter_id"), nullable=False)
+    distance_m: Mapped[float] = mapped_column(Float, nullable=False)
     created_at: Mapped[datetime] = _created_at()
 
 

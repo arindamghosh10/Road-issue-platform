@@ -115,6 +115,7 @@ const EVENT_TEXT: Record<string, (d: Record<string, unknown>) => string> = {
   report_attached: (d) => `Verified report received (${d.unique_reporters} citizen(s) so far)`,
   status_changed: (d) => `Status: ${String(d.to_status).replace("_", " ")}${d.note ? ` — ${d.note}` : ""}`,
   note: (d) => `Note: ${d.note}`,
+  sighting: () => "A citizen on site confirmed the issue is still there",
   assigned: (d) => `Assigned to ${d.assigned_to}`,
   escalated: (d) => `Escalated to ${d.to_node} (${d.reason})`,
   fix_submitted: (d) => `Repair photo submitted (vision check: ${d.vision})`,
