@@ -135,6 +135,8 @@ const en = {
   "near.emptyTitle": "No reported issues nearby",
   "near.emptyHint": "Spotted one? Report it from the Report tab.",
   "near.away": "{d} away",
+  "unit.m": "{n} m",
+  "unit.km": "{n} km",
   "near.verified": "{n} verified report(s)",
   "near.seenBy": "seen by {n} more",
   "near.youReported": "you reported this",

@@ -1,5 +1,5 @@
 import type { TicketStatus } from "./types";
-import { intlLocale, type Locale, type MessageKey, type T } from "./i18n";
+import { intlLocale, localizeDigits, type Locale, type MessageKey, type T } from "./i18n.ts";
 
 // Four status groups, each tied to a reserved status colour + an icon + a label, so
 // colour never carries the meaning alone (dataviz: status colours are reserved).
@@ -38,23 +38,29 @@ export function makeFormat(locale: Locale, t: T) {
   const il = intlLocale(locale);
   const compact = new Intl.NumberFormat(il, { notation: "compact", maximumFractionDigits: 1 });
   const whole = new Intl.NumberFormat(il);
+  const oneDecimal = new Intl.NumberFormat(il, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  // Intl picks the digits; localizeDigits is a safety net for engines that ignore -u-nu-.
+  const num = (n: number) => localizeDigits(locale, whole.format(n));
 
   const hours = (h: number | null | undefined): string => {
     if (h == null) return "—";
     if (h < 1) return t("time.lt1h");
     if (h < 48) return t("time.hours", { n: Math.round(h) });
-    return t("time.days", { n: (h / 24).toFixed(h < 240 ? 1 : 0) });
+    const days = h / 24;
+    return t("time.days", { n: localizeDigits(locale, h < 240 ? oneDecimal.format(days) : whole.format(Math.round(days))) });
   };
 
   return {
-    count: (n: number) => (n >= 10_000 ? compact.format(n) : whole.format(n)),
-    pct: (ratio: number | null | undefined) => (ratio == null ? "—" : `${Math.round(ratio * 100)}%`),
+    /** A plain number in the reader's digits (Bengali digits for Bengali). */
+    num,
+    count: (n: number) => localizeDigits(locale, n >= 10_000 ? compact.format(n) : whole.format(n)),
+    pct: (ratio: number | null | undefined) => (ratio == null ? "—" : `${num(Math.round(ratio * 100))}%`),
     hours,
     date(iso: string | null | undefined, opts: { year?: boolean } = {}): string {
       if (!iso) return "—";
-      return new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString(il, {
+      return localizeDigits(locale, new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString(il, {
         day: "numeric", month: "short", ...(opts.year === false ? {} : { year: "numeric" }),
-      });
+      }));
     },
     slaLeft(h: number | null): string {
       if (h == null) return "—";

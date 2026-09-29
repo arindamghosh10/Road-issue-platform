@@ -35,9 +35,9 @@ export default function PublicTicketPage() {
       </div>
 
       <section className="kpis" aria-label={t("ticket.facts")}>
-        <div className="tile"><div className="tile-label">{t("ticket.verified")}</div><div className="tile-value">{tk.verified_reporters}</div>
+        <div className="tile"><div className="tile-label">{t("ticket.verified")}</div><div className="tile-value">{f.num(tk.verified_reporters)}</div>
           <div className="tile-note">{t("ticket.merged", { n: tk.report_count })}{tk.also_seen ? ` · ${t("ticket.alsoSeen", { n: tk.also_seen })}` : ""}</div></div>
-        <div className="tile"><div className="tile-label">{t("ticket.severity")}</div><div className="tile-value">{tk.severity} / 5</div></div>
+        <div className="tile"><div className="tile-label">{t("ticket.severity")}</div><div className="tile-value">{f.num(tk.severity)} / {f.num(5)}</div></div>
         <div className="tile"><div className="tile-label">{t("ticket.deadline")}</div><div className="tile-value" style={{ fontSize: 20 }}>{f.date(tk.sla_due_on)}</div>
           {tk.escalation_level > 0 && <div className="tile-note">{t("ticket.escalated", { n: tk.escalation_level })}</div>}</div>
         <div className="tile"><div className="tile-label">{t("ticket.responsible")}</div><div className="tile-value" style={{ fontSize: 18 }}>{tk.responsible_area ?? "—"}</div>

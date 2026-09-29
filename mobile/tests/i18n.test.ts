@@ -5,7 +5,7 @@ import { test } from "node:test";
 import en from "../src/lib/messages/en.ts";
 import hi from "../src/lib/messages/hi.ts";
 import bn from "../src/lib/messages/bn.ts";
-import { checkLines, codeText, errorText, formatDate, noticeText, pickLocale, translator } from "../src/lib/i18n.ts";
+import { checkLines, codeText, distanceText, errorText, formatDate, localizeDigits, noticeText, pickLocale, translator } from "../src/lib/i18n.ts";
 
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
@@ -49,7 +49,7 @@ test("notifications are rebuilt from their kind", () => {
   const t = translator("bn");
   const v = noticeText(t, { kind: "report_verified", title: "x", body: "y", ticket_ref: "RW-ABC", params: { reporters: 3 } });
   assert.equal(v.title, "অভিযোগ যাচাই হয়েছে: RW-ABC");
-  assert.ok(v.body.includes("RW-ABC") && v.body.includes("3"));
+  assert.ok(v.body.includes("RW-ABC") && v.body.includes("৩"));
   const r = noticeText(t, { kind: "report_rejected", title: "x", body: "English reason", ticket_ref: null,
                             params: { reason: "duplicate.seen" } });
   assert.equal(r.body, bn["code.duplicate.seen"]);
@@ -68,11 +68,28 @@ test("known server errors are translated; unknown ones are shown as sent", () =>
   assert.equal(errorText(t, err(418, "Brand new message")), "Brand new message");
 });
 
-test("dates use the reader's month names with Latin digits", () => {
+test("dates: month names in the reader's language; Bengali digits for Bengali", () => {
   assert.match(formatDate("en", "2026-07-22"), /22 Jul 2026/);
   const hiDate = formatDate("hi", "2026-07-22");
   assert.match(hiDate, /22/);
   assert.match(hiDate, /2026/);
-  assert.doesNotMatch(hiDate, /[०-९]/);
-  assert.doesNotMatch(formatDate("bn", "2026-07-22"), /[০-৯]/);
+  const bnDate = formatDate("bn", "2026-07-22");
+  assert.match(bnDate, /২২/);
+  assert.match(bnDate, /২০২৬/);
+  assert.doesNotMatch(bnDate, /[0-9]/);
+});
+
+test("Bengali numbers use Bengali digits; ticket refs and English/Hindi don't change", () => {
+  const bnT = translator("bn");
+  assert.equal(bnT("near.count", { n: 12 }), "১.৫ কিমির মধ্যে ১২টি সমস্যা, সবচেয়ে কাছেরটি আগে");
+  // A ticket ref is a string: it is left exactly as typed.
+  assert.equal(bnT("n.report_verified.title", { ref: "RW-9UGWCYX5" }), "অভিযোগ যাচাই হয়েছে: RW-9UGWCYX5");
+  assert.equal(codeText(bnT, "capture.too_old", { hours: 24 }), "ছবিটি ২৪ ঘণ্টার বেশি পুরনো।");
+  assert.equal(translator("hi")("near.count", { n: 12 }), "1.5 किमी के अंदर 12 समस्याएँ, सबसे पास वाली पहले");
+  assert.equal(localizeDigits("bn", "1.5 km"), "১.৫ km");
+  assert.equal(distanceText(bnT, 1480), "১.৫ কিমি");
+  assert.equal(distanceText(bnT, 42), "৪০ মি");
+  assert.equal(distanceText(translator("en"), 23000), "23 km");
+  assert.equal(localizeDigits("en", "1.5 km"), "1.5 km");
+  for (const text of Object.values(bn)) assert.doesNotMatch(text, /[0-9]/, `Latin digit in: ${text}`);
 });

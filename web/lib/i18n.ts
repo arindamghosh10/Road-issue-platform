@@ -6,9 +6,10 @@
 // Adding a language: copy messages/en.ts, translate, add it below. TypeScript refuses
 // to build if a dictionary is missing a key.
 
-import en from "./messages/en";
-import hi from "./messages/hi";
-import bn from "./messages/bn";
+// Explicit .ts extensions so the plain-Node tests (npm test) can load this file.
+import en from "./messages/en.ts";
+import hi from "./messages/hi.ts";
+import bn from "./messages/bn.ts";
 
 export type MessageKey = keyof typeof en;
 export type Dictionary = Record<MessageKey, string>;
@@ -37,15 +38,25 @@ export function negotiateLocale(header: string | null | undefined): Locale {
 export type Vars = Record<string, string | number>;
 export type T = (key: MessageKey, vars?: Vars) => string;
 
+/** Bengali is written with Bengali digits (০–৯); English and Hindi use 0–9. Codes
+ * people type or search (ticket refs like RW-9UGWCYX5, phone numbers) are never
+ * converted: only numbers passed to t() as numbers, and formatter output. */
+const BENGALI_DIGITS = "০১২৩৪৫৬৭৮৯";
+export function localizeDigits(locale: Locale, text: string): string {
+  return locale === "bn" ? text.replace(/[0-9]/g, (d) => BENGALI_DIGITS[Number(d)]) : text;
+}
+
 export function translator(locale: Locale): T {
   const dict = dictionaries[locale];
   return (key, vars = {}) => {
     let text = dict[key] ?? en[key];
-    for (const [k, v] of Object.entries(vars)) text = text.replaceAll(`{${k}}`, String(v));
+    for (const [k, v] of Object.entries(vars)) {
+      text = text.replaceAll(`{${k}}`, typeof v === "number" ? localizeDigits(locale, String(v)) : v);
+    }
     return text;
   };
 }
 
-/** Intl locale: Hindi/Bengali month names, but Latin digits everywhere so numbers,
- * ticket refs and charts read the same in every language. */
-export const intlLocale = (locale: Locale) => `${locale}-IN-u-nu-latn`;
+/** Intl locale for dates and numbers: month names in the reader's language; Bengali
+ * digits for Bengali, Latin digits for English and Hindi. */
+export const intlLocale = (locale: Locale) => `${locale}-IN-u-nu-${locale === "bn" ? "beng" : "latn"}`;

@@ -88,9 +88,9 @@ export default function GovTicketPage() {
       </div>
 
       <section className="kpis" aria-label={t("ticket.facts")}>
-        <div className="tile"><div className="tile-label">{t("ticket.verified")}</div><div className="tile-value">{tk.verified_reporters}</div>
+        <div className="tile"><div className="tile-label">{t("ticket.verified")}</div><div className="tile-value">{f.num(tk.verified_reporters)}</div>
           <div className="tile-note">{t("gt.reports", { n: tk.report_count })}</div></div>
-        <div className="tile"><div className="tile-label">{t("gt.sevPriority")}</div><div className="tile-value">{tk.severity} / 5</div>
+        <div className="tile"><div className="tile-label">{t("gt.sevPriority")}</div><div className="tile-value">{f.num(tk.severity)} / {f.num(5)}</div>
           <div className="tile-note">{t("gt.priority", { n: tk.priority })}</div></div>
         <div className="tile"><div className="tile-label">{t("ticket.deadline")}</div>
           <div className="tile-value" style={{ fontSize: 20 }}>{tk.status === "fix_submitted" ? t("gt.paused") : f.slaLeft(tk.sla_hours_left)}</div>

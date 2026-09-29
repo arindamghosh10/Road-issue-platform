@@ -127,7 +127,7 @@ export default function PublicDashboard() {
                   <td>{f.category(tk.category, tk.category_name)}</td>
                   <td>{tk.areas[tk.areas.length - 1]?.name ?? "—"}</td>
                   <td><StatusBadge status={tk.status} /></td>
-                  <td className="num">{tk.verified_reporters}</td>
+                  <td className="num">{f.num(tk.verified_reporters)}</td>
                   <td className="num">{f.date(tk.reported_on)}</td>
                 </tr>
               ))}

@@ -137,6 +137,8 @@ const hi: Dictionary = {
   "near.emptyTitle": "आस-पास कोई दर्ज समस्या नहीं",
   "near.emptyHint": "कोई दिखी? “शिकायत करें” टैब से दर्ज करें।",
   "near.away": "{d} दूर",
+  "unit.m": "{n} मी",
+  "unit.km": "{n} किमी",
   "near.verified": "{n} सत्यापित शिकायतें",
   "near.seenBy": "{n} और लोगों ने देखी",
   "near.youReported": "आपने दर्ज की",

@@ -9,9 +9,9 @@ import { FlatList, Pressable, RefreshControl, View } from "react-native";
 import { MiniMap } from "@/components/MiniMap";
 import { Body, Button, Card, Empty, ErrorText, Screen, Small, StatusPill } from "@/components/ui";
 import { api, type NearbyTicket } from "@/lib/api";
-import { errorText, type MessageKey } from "@/lib/i18n";
+import { distanceText, errorText, type MessageKey } from "@/lib/i18n";
 import { useI18n } from "@/lib/locale";
-import { formatDistance, ticketStatusView } from "@/lib/logic";
+import { ticketStatusView } from "@/lib/logic";
 import { space } from "@/lib/theme";
 
 type Fix = { lat: number; lon: number; accuracy: number };
@@ -19,6 +19,7 @@ type Fix = { lat: number; lon: number; accuracy: number };
 export default function Nearby() {
   const router = useRouter();
   const { t: tr } = useI18n();
+  const distance = (m: number) => distanceText(tr, m);
   const catName = (x: NearbyTicket) => tr(`cat.${x.category}` as MessageKey);
   const [fix, setFix] = useState<Fix | null>(null);
   const [rows, setRows] = useState<NearbyTicket[] | null>(null);
@@ -74,10 +75,10 @@ export default function Nearby() {
           return (
             <Card>
               <Pressable onPress={() => router.push(`/ticket/${t.ref}`)} accessibilityRole="button"
-                         accessibilityLabel={`${catName(t)}, ${tr("near.away", { d: formatDistance(t.distance_m) })}`}>
+                         accessibilityLabel={`${catName(t)}, ${tr("near.away", { d: distance(t.distance_m) })}`}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                   <Body>{catName(t)}</Body>
-                  <Small>{formatDistance(t.distance_m)}</Small>
+                  <Small>{distance(t.distance_m)}</Small>
                 </View>
                 <StatusPill view={ticketStatusView(t.status)} />
                 <Small>

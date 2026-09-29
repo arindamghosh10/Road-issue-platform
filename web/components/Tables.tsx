@@ -59,7 +59,7 @@ export function AreaTable({ rows, onDrill }: { rows: AreaRow[]; onDrill: (row: A
           {visible.map((r, i) => (
             <tr key={r.id} className={r.has_children ? "clickable" : undefined}
                 onClick={() => r.has_children && onDrill(r)}>
-              <td className="muted num">{i + 1}</td>
+              <td className="muted num">{f.num(i + 1)}</td>
               <td>
                 {r.has_children
                   ? <button type="button" className="crumbs-btn" style={{ background: "none", border: 0, padding: 0, color: "var(--accent-ink)", cursor: "pointer", textAlign: "left" }}
@@ -120,7 +120,8 @@ export function Breadcrumbs({ trail, onPick }: { trail: { id: number | null; nam
 /** One timeline line in the reader's language. Free text (official notes, the reason
  * a repair photo was refused) is shown as written. */
 function eventText(t: T, f: Format, type: string, d: Record<string, unknown>): string {
-  const n = (x: unknown) => String(x ?? "?");
+  // Numbers stay numbers so t() writes them in the reader's digits.
+  const n = (x: unknown) => (typeof x === "number" ? x : String(x ?? "?"));
   switch (type) {
     case "ticket_created": return t("tl.ticket_created");
     case "report_attached": return t("tl.report_attached", { n: n(d.unique_reporters) });

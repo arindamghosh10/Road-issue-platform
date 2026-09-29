@@ -317,11 +317,14 @@ Every screen of the citizen app and both dashboards is available in English, ह
 - **Pushes** use the app's language too: the app sends it with its push token (stored
   in the vault next to the token), and the generic "you have an update" text goes out
   in Hindi, Bengali or English.
-- **Digits** stay Latin (0–9) in every language, so ticket numbers, dates and chart
-  axes read the same everywhere; month names are translated.
+- **Digits:** Bengali is written with Bengali digits (০–৯) everywhere: counts, dates,
+  durations, percentages, distances, chart axes. English and Hindi use 0–9. Codes people
+  type or search, like ticket numbers (RW-9UGWCYX5), phone numbers and sign-in codes,
+  keep 0–9 in every language. The one exception is the small count inside map cluster
+  bubbles, drawn with the map tiles' font, which has no Bengali glyphs.
 - **Checks:** TypeScript refuses to build if a Hindi or Bengali string is missing, and
-  `npm test` (in `web/` and `mobile/`) fails if a translation drops a `{placeholder}`
-  or is still in English.
+  `npm test` (in `web/` and `mobile/`) fails if a translation drops a `{placeholder}`,
+  is still in English, or (Bengali) contains a Latin digit.
 - **Adding a language:** copy `messages/en.ts`, translate it, and add the code to
   `LOCALES` in `lib/i18n.ts` (web) and `src/lib/i18n.ts` (app), plus `BODIES` in
   `backend/app/identity/push.py`.

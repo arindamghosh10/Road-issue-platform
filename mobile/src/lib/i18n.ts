@@ -35,26 +35,45 @@ export function pickLocale(languageCodes: (string | null | undefined)[]): Locale
 export type Vars = Record<string, string | number>;
 export type T = (key: MessageKey, vars?: Vars) => string;
 
+/** Bengali is written with Bengali digits (০–৯); English and Hindi use 0–9. Codes
+ * people type or search (ticket refs like RW-9UGWCYX5, phone numbers) are never
+ * converted: only numbers passed to t() as numbers, and formatter output. */
+const BENGALI_DIGITS = "০১২৩৪৫৬৭৮৯";
+export function localizeDigits(locale: Locale, text: string): string {
+  return locale === "bn" ? text.replace(/[0-9]/g, (d) => BENGALI_DIGITS[Number(d)]) : text;
+}
+
 export function translator(locale: Locale): T {
   const dict = dictionaries[locale];
   return (key, vars = {}) => {
     let text = dict[key] ?? en[key];
-    for (const [k, v] of Object.entries(vars)) text = text.split(`{${k}}`).join(String(v));
+    for (const [k, v] of Object.entries(vars)) {
+      text = text.split(`{${k}}`).join(typeof v === "number" ? localizeDigits(locale, String(v)) : v);
+    }
     return text;
   };
 }
 
 const has = (key: string): key is MessageKey => key in en;
 
-/** "22 Jul 2026" / "22 जुल॰ 2026" / "22 জুল, 2026" — month in the reader's language,
- * Latin digits everywhere so ticket numbers and dates read the same in every language. */
+/** "22 Jul 2026" / "22 जुल॰ 2026" / "২২ জুল, ২০২৬": month in the reader's language,
+ * Bengali digits for Bengali. */
 export function formatDate(locale: Locale, iso: string): string {
   const d = new Date(iso.length === 10 ? `${iso}T00:00:00` : iso);
   try {
-    return d.toLocaleDateString(`${locale}-IN-u-nu-latn`, { day: "numeric", month: "short", year: "numeric" });
+    const text = d.toLocaleDateString(`${locale}-IN-u-nu-${locale === "bn" ? "beng" : "latn"}`,
+                                      { day: "numeric", month: "short", year: "numeric" });
+    return localizeDigits(locale, text); // in case the engine ignores the numbering system
   } catch {
-    return d.toISOString().slice(0, 10); // very old JS engines without Intl
+    return localizeDigits(locale, d.toISOString().slice(0, 10)); // very old JS engines without Intl
   }
+}
+
+/** "40 m" / "40 मी" / "৪০ মি": rounded like logic.formatDistance, units translated. */
+export function distanceText(t: T, metres: number): string {
+  if (metres < 1000) return t("unit.m", { n: Math.round(metres / 10) * 10 });
+  const km = metres / 1000;
+  return t("unit.km", { n: metres < 10_000 ? Math.round(km * 10) / 10 : Math.round(km) });
 }
 
 // --- Server codes → sentences ----------------------------------------------------------
@@ -66,7 +85,8 @@ export function codeText(t: T, code: string | null | undefined, params: Params =
   if (!code) return fallback;
   if (code === "capture.warnings") {
     const warnings = Array.isArray(params.warnings) ? (params.warnings as string[]) : [];
-    const lines = warnings.map((w) => (has(`warn.${w}`) ? t(`warn.${w}` as MessageKey, { m: String(params.gps_m ?? "?") }) : w));
+    const m = typeof params.gps_m === "number" ? params.gps_m : "?";
+    const lines = warnings.map((w) => (has(`warn.${w}`) ? t(`warn.${w}` as MessageKey, { m }) : w));
     return lines.join("; ") || fallback;
   }
   if (code === "vision.wrong_category") {
@@ -78,7 +98,8 @@ export function codeText(t: T, code: string | null | undefined, params: Params =
   }
   const key = `code.${code}`;
   if (!has(key)) return fallback;
-  return t(key as MessageKey, Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)])));
+  return t(key as MessageKey, Object.fromEntries(Object.entries(params).map(
+    ([k, v]) => [k, typeof v === "number" ? v : String(v)])));
 }
 
 export type CheckIn = { name: string; reason: string; code?: string; params?: Params };
@@ -102,7 +123,7 @@ export function noticeText(t: T, n: NoticeIn): { title: string; body: string } {
     case "report_verified":
       return {
         title: t("n.report_verified.title", { ref }),
-        body: p.reporters != null ? t("n.report_verified.body", { ref, n: String(p.reporters) })
+        body: p.reporters != null ? t("n.report_verified.body", { ref, n: Number(p.reporters) })
           : t("n.report_verified.bodyShort", { ref }),
       };
     case "report_rejected":

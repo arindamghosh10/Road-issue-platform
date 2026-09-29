@@ -1,5 +1,6 @@
 // বাংলা (Bengali). Keys must match en.ts exactly; TypeScript checks that.
 // Draft translation: have a native speaker review before a public launch.
+// Bengali digits (০–৯) throughout; numbers passed to t() are converted too.
 
 import type { Dictionary } from "../i18n";
 
@@ -12,7 +13,7 @@ const bn: Dictionary = {
   "err.generic": "কিছু একটা গোলমাল হয়েছে ({status})।",
   "err.tooMany": "অনেকবার চেষ্টা করা হয়েছে। একটু অপেক্ষা করে আবার চেষ্টা করুন।",
   "err.suspended": "এই অ্যাকাউন্ট স্থগিত করা হয়েছে।",
-  "err.invalidPhone": "10 অঙ্কের ভারতীয় মোবাইল নম্বর লিখুন।",
+  "err.invalidPhone": "১০ অঙ্কের ভারতীয় মোবাইল নম্বর লিখুন।",
   "err.wrongCode": "কোডটি ভুল।",
   "err.codeExpired": "কোডের মেয়াদ শেষ। নতুন কোড চান।",
   "err.tooManyCodes": "অনেকবার কোড চাওয়া হয়েছে। পরে আবার চেষ্টা করুন।",
@@ -22,7 +23,7 @@ const bn: Dictionary = {
   "err.gpsImprecise": "GPS লোকেশন যথেষ্ট নিখুঁত নয়। বাইরে খোলা জায়গায় আবার চেষ্টা করুন।",
   "err.alreadyReported": "আপনি এই সমস্যার কথা আগেই জানিয়েছেন।",
   "err.alreadyConfirmed": "আপনি এই সমস্যাটি আগেই নিশ্চিত করেছেন।",
-  "err.tooFar": "নিশ্চিত করতে আপনাকে সমস্যার 150 মিটারের মধ্যে থাকতে হবে।",
+  "err.tooFar": "নিশ্চিত করতে আপনাকে সমস্যার ১৫০ মিটারের মধ্যে থাকতে হবে।",
   "err.notWaiting": "এই সমস্যাটি এখন নিশ্চিতকরণের অপেক্ষায় নেই।",
   "err.onlyReporters": "যাঁরা এই সমস্যার কথা জানিয়েছিলেন, শুধু তাঁরাই মেরামত নিশ্চিত করতে পারেন।",
   "err.photoTooBig": "ছবিটি খুব বড়।",
@@ -38,7 +39,7 @@ const bn: Dictionary = {
   "login.phone": "আপনার মোবাইল নম্বর",
   "login.phoneLabel": "মোবাইল নম্বর",
   "login.send": "কোড পাঠান",
-  "login.enterCode": "আমাদের পাঠানো 6 অঙ্কের কোডটি লিখুন",
+  "login.enterCode": "আমাদের পাঠানো ৬ অঙ্কের কোডটি লিখুন",
   "login.codeLabel": "এককালীন কোড",
   "login.signIn": "সাইন ইন করুন",
   "login.otherNumber": "অন্য নম্বর ব্যবহার করুন",
@@ -133,10 +134,12 @@ const bn: Dictionary = {
   "detail.follow": "সমস্যা {ref}-এর খবর রাখুন",
 
   "near.allowLoc": "কাছাকাছি সমস্যা দেখতে লোকেশনের অনুমতি দিন।",
-  "near.count": "1.5 কিমির মধ্যে {n}টি সমস্যা, সবচেয়ে কাছেরটি আগে",
+  "near.count": "১.৫ কিমির মধ্যে {n}টি সমস্যা, সবচেয়ে কাছেরটি আগে",
   "near.emptyTitle": "কাছাকাছি কোনো সমস্যা জানানো হয়নি",
   "near.emptyHint": "কোনোটা চোখে পড়েছে? “জানান” ট্যাব থেকে জানান।",
   "near.away": "{d} দূরে",
+  "unit.m": "{n} মি",
+  "unit.km": "{n} কিমি",
   "near.verified": "{n}টি যাচাই করা অভিযোগ",
   "near.seenBy": "আরও {n} জন দেখেছেন",
   "near.youReported": "আপনি জানিয়েছেন",

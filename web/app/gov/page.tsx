@@ -123,8 +123,8 @@ export default function GovDashboard() {
                   <td>{tk.areas[tk.areas.length - 1]?.name ?? "—"}
                     {tk.escalation_level > 0 && <div className="muted small">{t("gov.escalatedTo", { area: tk.responsible_area ?? "" })}</div>}</td>
                   <td><StatusBadge status={tk.status} /></td>
-                  <td className="num">{tk.severity}</td>
-                  <td className="num">{tk.verified_reporters}</td>
+                  <td className="num">{f.num(tk.severity)}</td>
+                  <td className="num">{f.num(tk.verified_reporters)}</td>
                   <td><SlaCell hours={tk.sla_hours_left} status={tk.status} /></td>
                   <td>{tk.assigned_to ?? <span className="muted">—</span>}</td>
                 </tr>

@@ -1,5 +1,6 @@
 // বাংলা (Bengali). Keys must match en.ts exactly; TypeScript checks that.
 // Draft translation: have a native speaker review before a public launch.
+// Bengali digits (০–৯) throughout; numbers passed to t() are converted too.
 
 import type { Dictionary } from "../i18n";
 
@@ -66,7 +67,7 @@ const bn: Dictionary = {
   "cat.road_cave_in": "রাস্তা বসে যাওয়া",
   "cat.other": "অন্যান্য",
 
-  "time.lt1h": "< 1 ঘণ্টা",
+  "time.lt1h": "< ১ ঘণ্টা",
   "time.hours": "{n} ঘণ্টা",
   "time.days": "{n} দিন",
   "time.overdue": "{t} দেরি",
@@ -85,7 +86,7 @@ const bn: Dictionary = {
   "section.actions": "পদক্ষেপ",
 
   "public.mapHint": "{n}টি সমস্যা দেখানো হচ্ছে · বিস্তারিত দেখতে একটিতে ক্লিক করুন",
-  "public.last12": "গত 12 সপ্তাহ",
+  "public.last12": "গত ১২ সপ্তাহ",
   "public.compare": "তুলনা",
   "public.districts": "জেলা",
   "public.municipalities": "পৌরসংস্থা",
@@ -114,7 +115,7 @@ const bn: Dictionary = {
   "table.severity": "গুরুত্ব",
   "table.deadline": "সময়সীমা",
   "table.assigned": "দায়িত্বে",
-  "table.showTop": "প্রথম 10টি দেখান",
+  "table.showTop": "প্রথম ১০টি দেখান",
   "table.showAll": "সব {n}টি দেখান",
   "table.resolvedPct": "{pct} সমাধান",
 
@@ -167,10 +168,10 @@ const bn: Dictionary = {
   "chart.weekOf": "{date} থেকে শুরু সপ্তাহ",
   "chart.issuesReported": "জানানো সমস্যা",
   "chart.openIssues": "খোলা সমস্যা",
-  "age.0": "< 7 দিন",
-  "age.1": "7–30 দিন",
-  "age.2": "30–90 দিন",
-  "age.3": "90+ দিন",
+  "age.0": "< ৭ দিন",
+  "age.1": "৭–৩০ দিন",
+  "age.2": "৩০–৯০ দিন",
+  "age.3": "৯০+ দিন",
 
   "gov.login.title": "সরকারি সাইন-ইন",
   "gov.login.demo": "ডেমো:",
@@ -213,7 +214,7 @@ const bn: Dictionary = {
   "gt.noteAdd": "মন্তব্য যোগ করুন",
   "gt.noteAdded": "মন্তব্য যোগ হয়েছে।",
   "gt.fixTitle": "মেরামতের ছবি জমা দিন",
-  "gt.fixHelp": "মেরামতের পরে ঘটনাস্থলে (50 মিটারের মধ্যে) ছবি তুলুন। ফোনে এতে ক্যামেরা খোলে। ভিশন মডেল এটিকে নাগরিকদের ছবির সঙ্গে মেলায়, তারপর মূল অভিযোগকারীদের নিশ্চিত করতে বলা হয়।",
+  "gt.fixHelp": "মেরামতের পরে ঘটনাস্থলে (৫০ মিটারের মধ্যে) ছবি তুলুন। ফোনে এতে ক্যামেরা খোলে। ভিশন মডেল এটিকে নাগরিকদের ছবির সঙ্গে মেলায়, তারপর মূল অভিযোগকারীদের নিশ্চিত করতে বলা হয়।",
   "gt.fixLabel": "মেরামতের ছবি",
   "gt.fixSubmit": "মেরামতের ছবি জমা দিন",
   "gt.fixAccepted": "মেরামতের ছবি গৃহীত হয়েছে। মূল অভিযোগকারীদের মেরামত নিশ্চিত করতে বলা হয়েছে।",

@@ -16,6 +16,7 @@ import { useThemeColors } from "@/lib/useThemeColors";
 type TipPayload = readonly { name?: string; value?: unknown; color?: string; dataKey?: unknown }[];
 
 function TipBox({ title, rows }: { title: string; rows: { key: string; label: string; value: number; color: string; line?: boolean }[] }) {
+  const { f } = useI18n();
   return (
     <div className="tip">
       <div className="muted small">{title}</div>
@@ -24,7 +25,7 @@ function TipBox({ title, rows }: { title: string; rows: { key: string; label: st
           {r.line
             ? <span className="legend-line" style={{ background: r.color }} aria-hidden />
             : <span className="legend-line" style={{ background: r.color, height: 8, width: 8, borderRadius: 2 }} aria-hidden />}
-          <span className="tip-value">{r.value.toLocaleString("en-IN")}</span>
+          <span className="tip-value">{f.num(r.value)}</span>
           <span className="ink-2">{r.label}</span>
         </div>
       ))}
@@ -47,7 +48,7 @@ export function TrendChart({ data }: { data: TrendPoint[] }) {
       if (props.index !== last || props.x == null || props.y == null) return null;
       return (
         <text x={Number(props.x) + 8} y={Number(props.y) + 4} fontSize={12} fill={c["--ink-2"]}>
-          {label} {data[last][key]}
+          {label} {f.num(data[last][key])}
         </text>
       );
     };
@@ -69,7 +70,7 @@ export function TrendChart({ data }: { data: TrendPoint[] }) {
                    tick={{ fill: c["--muted"], fontSize: 12 }} axisLine={{ stroke: c["--axis"] }}
                    tickLine={false} minTickGap={24} />
             <YAxis allowDecimals={false} tick={{ fill: c["--muted"], fontSize: 12 }}
-                   axisLine={false} tickLine={false} width={40} />
+                   axisLine={false} tickLine={false} width={40} tickFormatter={(v: number) => f.num(v)} />
             <Tooltip
               cursor={{ stroke: c["--axis"], strokeWidth: 1 }}
               content={({ active, payload, label }) =>
@@ -107,6 +108,7 @@ export function CategoryBars({ data }: { data: CategoryRow[] }) {
   const c = useThemeColors();
   const { t, f } = useI18n();
   data = data.map((row) => ({ ...row, name: f.category(row.code, row.name) }));
+  const label = (v: unknown) => f.num(Number(v));
   const height = Math.max(120, data.length * 36 + 16);
   return (
     <div style={{ width: "100%", height }}>
@@ -118,7 +120,7 @@ export function CategoryBars({ data }: { data: CategoryRow[] }) {
           <Tooltip cursor={{ fill: c["--grid"], opacity: 0.4 }}
                    content={(p) => <BarTip {...(p as object)} payload={p.payload as TipPayload} label={String(p.label)} unit={t("chart.issuesReported")} />} />
           <Bar dataKey="total" fill={c["--series-1"]} barSize={16} radius={[0, 4, 4, 0]} isAnimationActive={false}>
-            <LabelList dataKey="total" position="right" fill={c["--ink-2"]} fontSize={12} />
+            <LabelList dataKey="total" position="right" fill={c["--ink-2"]} fontSize={12} formatter={label} />
           </Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -129,7 +131,7 @@ export function CategoryBars({ data }: { data: CategoryRow[] }) {
 /** Single-series columns over ordered buckets (status groups, backlog age). */
 export function ColumnBars({ data, unit }: { data: AgeingBucket[]; unit: string }) {
   const c = useThemeColors();
-  const { t } = useI18n();
+  const { t, f } = useI18n();
   // The API sends the four age buckets in a fixed order; label them in the reader's language.
   const AGE: MessageKey[] = ["age.0", "age.1", "age.2", "age.3"];
   data = data.map((row, i) => ({ ...row, bucket: AGE[i] ? t(AGE[i]) : row.bucket }));
@@ -139,11 +141,12 @@ export function ColumnBars({ data, unit }: { data: AgeingBucket[]; unit: string 
         <BarChart data={data} margin={{ top: 20, right: 8, bottom: 0, left: -12 }}>
           <CartesianGrid vertical={false} stroke={c["--grid"]} />
           <XAxis dataKey="bucket" tick={{ fill: c["--ink-2"], fontSize: 12 }} axisLine={{ stroke: c["--axis"] }} tickLine={false} />
-          <YAxis allowDecimals={false} tick={{ fill: c["--muted"], fontSize: 12 }} axisLine={false} tickLine={false} width={40} />
+          <YAxis allowDecimals={false} tick={{ fill: c["--muted"], fontSize: 12 }} axisLine={false} tickLine={false} width={40}
+                 tickFormatter={(v: number) => f.num(v)} />
           <Tooltip cursor={{ fill: c["--grid"], opacity: 0.4 }}
                    content={(p) => <BarTip {...(p as object)} payload={p.payload as TipPayload} label={String(p.label)} unit={unit} />} />
           <Bar dataKey="count" fill={c["--series-1"]} barSize={24} radius={[4, 4, 0, 0]} isAnimationActive={false}>
-            <LabelList dataKey="count" position="top" fill={c["--ink-2"]} fontSize={12} />
+            <LabelList dataKey="count" position="top" fill={c["--ink-2"]} fontSize={12} formatter={(v: unknown) => f.num(Number(v))} />
           </Bar>
         </BarChart>
       </ResponsiveContainer>
