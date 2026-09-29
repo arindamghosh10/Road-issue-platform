@@ -63,11 +63,27 @@ The test signs in with a code read from the log, takes a photo with the fake cam
 submits a pothole, checks it's verified and appears under Nearby, then has the KMC
 official submit a repair photo and answers "Yes, fixed" from the Inbox.
 
+## Push notifications
+
+After sign-in the app asks for notification permission and registers its Expo push
+token with the API (`src/lib/push.ts`). The server keeps it encrypted in the identity
+vault, never with reports, and every push says only "You have an update on your
+reports". Tapping it opens the Inbox. Signing out removes this phone.
+
+To receive real pushes:
+
+1. `npx eas-cli@latest init` — adds `extra.eas.projectId` to `app.json`.
+2. `npx eas-cli@latest credentials` — upload FCM (Android) / APNs (iOS) keys.
+3. Install a development build (`npx eas-cli@latest build --profile development`).
+   Expo Go can't receive remote pushes on Android.
+4. Run the worker with `PUSH_BACKEND=expo`.
+
+Without a project id, on a simulator, on web, or if permission is refused, the app
+skips push and everything else works the same.
+
 ## Not yet done
 
-- **Push notifications** are a stub; the Inbox refreshes when opened. Real push needs a
-  device push token stored against the reporter. That token is linked to a physical
-  phone, so where to store it (identity vault vs. ticket database) is an anonymity
-  decision to make first. See the Phase 4 notes in the main README.
+- **Push notifications** are built but need an EAS project to switch on (below). Until
+  then the Inbox refreshes when opened.
 - **Hindi / Bengali** strings: labels are plain English in the screens for now.
 - **Device attestation**: stubbed (Phase 5).

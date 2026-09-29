@@ -200,8 +200,8 @@ real checks); device attestation is a stub until the mobile app exists.
   escalated when "no"/"partly" pass 50%. After 7 days it's decided on the answers
   received; with no answers it resolves only if the vision check passed.
   The government sees only counts ("2 of 3 confirmed"), never who answered.
-- **Notifications:** in-app inbox for everyone, email for officials, push (stub) for
-  citizens. Officials hear about new tickets, deadlines, escalations, assignments;
+- **Notifications:** in-app inbox for everyone, email for officials, push for
+  citizens (see "Push notifications" below). Officials hear about new tickets, deadlines, escalations, assignments;
   citizens hear about verification, fix confirmation requests and outcomes.
 
 Code map: `app/gov/access.py`, `app/tickets/lifecycle.py`, `app/tickets/sla.py`,
@@ -237,11 +237,26 @@ photo folder (never the originals).
   shown as "also seen by N" and adds a little to priority, but does **not** count as a
   verified report (no photo).
 
-**Decision needed before real push notifications:** sending a push to a citizen's phone
-needs that phone's push token stored against their reporter id. The token identifies a
-device, so storing it in the ticket database would weaken "a dump of core-db identifies
-nobody". Options: keep tokens in the identity vault and let only the notifier read them
-there (recommended), or keep in-app inbox only. Push stays stubbed until you choose.
+**Push notifications (decided: tokens in the identity vault).** A push token identifies
+a physical phone, so it is treated like the phone number:
+
+- The app sends its Expo push token to `PUT /api/v1/citizen/push-token` after sign-in.
+  It is stored **only in the vault** (`push_tokens`), Fernet-encrypted, with an HMAC
+  lookup hash, linked to the identity — never to reports, and nothing about it is in the
+  core DB. Government and admin APIs cannot reach it.
+- **Pushes carry no details.** Every push says only "You have an update on your
+  reports"; the specifics are in the in-app Inbox, fetched over our signed-in API.
+  Pushes pass through Expo, Google (FCM) and Apple (APNs), who can tie a device to an
+  account; a ticket number in the text would tell them which issue this person reported.
+- Pushes go out **after** the change commits (dropped on rollback), from the worker,
+  one per person per change. Tokens Expo reports as dead (app uninstalled) are deleted;
+  sign-out removes the device; a ban forgets all of a person's devices; at most 5
+  devices per person.
+- `PUSH_BACKEND=log` (default) records pushes instead of sending; `PUSH_BACKEND=expo`
+  sends through Expo's free push service. On the phone this needs a development/store
+  build (not Expo Go) and an EAS project id; see `mobile/README.md`.
+
+Code map: `app/identity/push.py`, `app/notifications/service.py`, `mobile/src/lib/push.ts`.
 
 ## Hardening (Phase 5)
 
@@ -318,8 +333,10 @@ boundaries (e.g. from DataMeet) before any pilot.
 
 Stubbed or needing your decision:
 
-- **Push notifications**: decide where device push tokens live (recommended: the
-  identity vault). Until then citizens use the in-app inbox.
+- **Push notifications**: built (tokens in the vault, generic text). To switch on:
+  create an EAS project (`extra.eas.projectId` in `mobile/app.json`), upload FCM / APNs
+  credentials with `eas credentials`, ship a development or store build, and set
+  `PUSH_BACKEND=expo` on the worker.
 - **Device attestation**: implement Play Integrity / App Attest behind
   `app/security/attestation.py` (needs Google/Apple credentials), then turn on
   `REQUIRE_ATTESTATION`.

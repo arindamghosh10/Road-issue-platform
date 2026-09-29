@@ -50,3 +50,15 @@ def sla_sweep_task() -> dict:
     result = run_sla_sweep()
     return {"warned": len(result.warned), "escalated": len(result.escalated),
             "decided": len(result.decided)}
+
+
+@celery_app.task(
+    name="push.deliver",
+    autoretry_for=(ConnectionError, TimeoutError),
+    retry_backoff=True,
+    max_retries=3,
+)
+def push_task(reporter_ids: list[str]) -> int:
+    from app.identity.push import deliver
+
+    return deliver(reporter_ids)

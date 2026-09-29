@@ -41,6 +41,12 @@
         {
           "locationWhenInUsePermission": "RoadWatch records where each photo is taken so the right ward and authority get the report, and to show issues near you."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#2a78d6"
+        }
       ]
     ]
   }

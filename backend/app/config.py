@@ -92,6 +92,9 @@ class Settings(BaseSettings):
     smtp_port: int = 1025
     email_backend: str = "smtp"  # "smtp" | "log" (tests: record instead of sending)
     email_from: str = "RoadWatch <no-reply@roadwatch.local>"
+    # Citizen push: "log" (record only) or "expo" (Expo's free push service → FCM/APNs).
+    push_backend: str = "log"
+    expo_access_token: str | None = None  # optional; only if "enhanced push security" is on
 
     # --- Government workflow ------------------------------------------------------
     official_token_ttl_hours: int = 12

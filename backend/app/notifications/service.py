@@ -1,14 +1,16 @@
-"""Notifications: in-app inbox + email (officials) + push (stub).
+"""Notifications: in-app inbox + email (officials) + push (citizens).
 
 Every notification is first written to the `notifications` table (the in-app inbox),
 then copied to other channels:
 * officials — email (Mailpit locally, Brevo free tier when hosted)
-* citizens  — push (Expo/FCM, stubbed until the mobile app exists). Citizens are never
-              emailed: we don't have, and don't want, their email address.
+* citizens  — a generic "you have an update" push to their phone (see
+              app/identity/push.py: tokens live in the vault, never here). Citizens are
+              never emailed: we don't have, and don't want, their email address.
 
 Channel failures are logged, never raised: a mail server outage must not stop a ticket
 from being escalated. Callers add rows to the current DB session and commit with the
 rest of their change, so a notification exists only if the change it announces does.
+Pushes wait for that commit too: they are sent after it, and dropped on rollback.
 """
 
 import logging
@@ -17,7 +19,7 @@ from email.message import EmailMessage
 from functools import lru_cache
 from typing import Protocol
 
-from sqlalchemy import or_, select
+from sqlalchemy import event, or_, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -60,25 +62,9 @@ class LogEmailSender:
         log.info("[EMAIL STUB] to=%s subject=%s", to, subject)
 
 
-class PushSender(Protocol):
-    def send(self, reporter_id: str, title: str, body: str) -> None: ...
-
-
-class StubPushSender:
-    """Expo / FCM push arrives with the mobile app (Phase 4)."""
-
-    def send(self, reporter_id: str, title: str, body: str) -> None:
-        log.info("[PUSH STUB] %s", title)
-
-
 @lru_cache
 def get_email_sender() -> EmailSender:
     return SmtpEmailSender() if get_settings().email_backend == "smtp" else LogEmailSender()
-
-
-@lru_cache
-def get_push_sender() -> PushSender:
-    return StubPushSender()
 
 
 def _deliver_email(official: Official, title: str, body: str) -> None:
@@ -112,6 +98,39 @@ def officials_for_node(db: Session, node_id: int | None, authority_id: int | Non
     return list(db.scalars(select(Official).where(Official.is_active, or_(*conditions))))
 
 
+# --- Citizen push: queued on the session, sent after commit ---------------------------------
+
+_PUSH_KEY = "roadwatch_push_reporters"
+
+
+def enqueue_push(reporter_ids: list[str]) -> None:
+    """Hand reporters to the worker for a push. Never raises: a broker outage must not
+    turn an already-committed change into an error."""
+    try:
+        if get_settings().tasks_eager:
+            from app.identity.push import deliver
+
+            deliver(reporter_ids)
+        else:
+            from app.worker import push_task
+
+            push_task.delay(reporter_ids)
+    except Exception as exc:  # noqa: BLE001 — push must never break the workflow
+        log.warning("push dispatch failed: %s", type(exc).__name__)
+
+
+@event.listens_for(Session, "after_commit")
+def _send_pushes_after_commit(session: Session) -> None:
+    reporter_ids = session.info.pop(_PUSH_KEY, None)
+    if reporter_ids:
+        enqueue_push(sorted(reporter_ids))
+
+
+@event.listens_for(Session, "after_rollback")
+def _drop_pushes_on_rollback(session: Session) -> None:
+    session.info.pop(_PUSH_KEY, None)
+
+
 def notify_reporter(
     db: Session, reporter_id: str, ticket: Ticket | None, kind: str, title: str, body: str
 ) -> None:
@@ -119,10 +138,7 @@ def notify_reporter(
         recipient_type=RecipientType.REPORTER.value, recipient_id=reporter_id,
         ticket_id=ticket.id if ticket else None, kind=kind, title=title, body=body,
     ))
-    try:
-        get_push_sender().send(reporter_id, title, body)
-    except Exception as exc:  # noqa: BLE001 — push must never break the workflow
-        log.warning("push failed: %s", type(exc).__name__)
+    db.info.setdefault(_PUSH_KEY, set()).add(reporter_id)
 
 
 def ticket_reporter_ids(db: Session, ticket: Ticket) -> list[str]:

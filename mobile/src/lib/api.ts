@@ -60,6 +60,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (res.status === 401) { await tokenStore.set(null); onUnauthorized?.(); }
     throw new ApiError(res.status, message);
   }
+  if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
@@ -113,6 +114,11 @@ export const api = {
     post<{ ticket_ref: string; ticket_status: TicketStatus }>(
       `/citizen/tickets/${encodeURIComponent(ref)}/confirm`, { response }),
   notifications: () => request<Notice[]>("/citizen/notifications"),
+
+  // Push token → identity vault (encrypted). See src/lib/push.ts.
+  registerPushToken: (token: string, platform: "android" | "ios") =>
+    request<void>("/citizen/push-token", { method: "PUT", body: JSON.stringify({ token, platform }) }),
+  removePushToken: (token: string) => post<void>("/citizen/push-token/remove", { token }),
 };
 
 /** Attach a photo from the in-app camera to a multipart form. Native: file URI;

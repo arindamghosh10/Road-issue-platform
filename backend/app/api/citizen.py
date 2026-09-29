@@ -28,6 +28,7 @@ from app.api.deps import current_reporter_id
 from app.api.gov import NotificationOut, notification_rows
 from app.api.views import PublicTicket, build_tickets
 from app.db import get_core_db
+from app.identity import push
 from app.identity.service import AuthError, request_otp, verify_otp
 from app.models.core import (
     ActorType,
@@ -350,6 +351,33 @@ def my_notifications(
     db: Session = Depends(get_core_db),
 ) -> list[NotificationOut]:
     return notification_rows(db, RecipientType.REPORTER.value, reporter_id, unread_only)
+
+
+class PushTokenIn(BaseModel):
+    token: str = Field(max_length=250, examples=["ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]"])
+    platform: str = Field(examples=["android"])
+
+
+class PushTokenRef(BaseModel):
+    token: str = Field(max_length=250)
+
+
+@router.put("/push-token", status_code=status.HTTP_204_NO_CONTENT)
+def register_push_token(body: PushTokenIn, reporter_id: str = Depends(current_reporter_id)) -> None:
+    """Receive a push when there's news on your reports. The token is kept encrypted in
+    the identity vault, never with reports; pushes say only "you have an update"."""
+    enforce("push_token_hour", reporter_id, actor_type="citizen", actor_id=reporter_id)
+    try:
+        push.register_token(reporter_id, body.token, body.platform)
+    except push.PushError as exc:
+        raise HTTPException(422, str(exc)) from None
+
+
+@router.post("/push-token/remove", status_code=status.HTTP_204_NO_CONTENT)
+def remove_push_token(body: PushTokenRef, reporter_id: str = Depends(current_reporter_id)) -> None:
+    """Stop pushes to this device (called on sign-out)."""
+    enforce("push_token_hour", reporter_id, actor_type="citizen", actor_id=reporter_id)
+    push.unregister_token(reporter_id, body.token)
 
 
 @router.get("/reports/{report_id}", response_model=MyReport)

@@ -38,6 +38,7 @@ RULES = {
     "report_day": Rule("report_day", 30, 86400),                # reports per citizen per day
     "sighting_hour": Rule("sighting_hour", 30, 3600),           # "I see this too" per citizen per hour
     "confirm_hour": Rule("confirm_hour", 30, 3600),             # fix answers per citizen per hour
+    "push_token_hour": Rule("push_token_hour", 20, 3600),       # device (un)registrations per citizen
     "gov_export_hour": Rule("gov_export_hour", 20, 3600),       # CSV exports per official per hour
     "gov_fix_proof_hour": Rule("gov_fix_proof_hour", 60, 3600), # repair photos per official per hour
 }

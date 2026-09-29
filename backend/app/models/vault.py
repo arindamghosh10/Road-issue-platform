@@ -13,6 +13,10 @@ What is stored, and why:
                         The Aadhaar number itself is NEVER stored. The hash lets us
                         enforce "one person, one account" and make bans stick.
 * reporter_links      — identity ↔ opaque reporter_id used in the core DB.
+* push_tokens         — the phone's push address (Expo push token), Fernet-encrypted.
+                        A device token is a stable hardware-ish identifier, so it is kept
+                        here, next to the phone number, and never in the core DB: an
+                        official can't match "the device that reported this" to a person.
 """
 
 import uuid
@@ -82,5 +86,26 @@ class ReporterLink(VaultBase):
     )
     reporter_id: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class PushToken(VaultBase):
+    """A device that may receive push notifications for one identity."""
+
+    __tablename__ = "push_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    identity_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("identities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_encrypted: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    # HMAC of the token: finds "is this device already registered?" without decrypting.
+    token_lookup_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    platform: Mapped[str] = mapped_column(String(10), nullable=False)  # "android" | "ios"
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

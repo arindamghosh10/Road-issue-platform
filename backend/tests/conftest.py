@@ -18,6 +18,7 @@ os.environ["TASKS_EAGER"] = "true"
 os.environ["VISION_PROVIDER"] = "stub"
 os.environ["OTP_PROVIDER"] = "stub"
 os.environ["EMAIL_BACKEND"] = "log"
+os.environ["PUSH_BACKEND"] = "log"
 os.environ["RATE_LIMIT_BACKEND"] = "memory"
 TEST_CORE = os.environ.get("TEST_CORE_DATABASE_URL")
 TEST_VAULT = os.environ.get("TEST_VAULT_DATABASE_URL")
@@ -74,11 +75,15 @@ def clean_db(migrated_db):
         ))
         conn.execute(text("UPDATE officials SET totp_enabled = false, totp_secret = NULL"))
     with vault_engine().begin() as conn:
-        conn.execute(text("TRUNCATE reporter_links, otp_challenges, identities CASCADE"))
+        conn.execute(text("TRUNCATE push_tokens, reporter_links, otp_challenges, identities CASCADE"))
     get_store().objects.clear()
     from app.security.ratelimit import _counter
 
     _counter().reset()  # fresh rate-limit windows for every test
+    from app.identity.push import get_push_sender
+
+    get_push_sender().sent.clear()
+    get_push_sender().dead_tokens.clear()
     yield
 
 

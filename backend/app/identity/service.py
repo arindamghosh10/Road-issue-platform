@@ -14,14 +14,14 @@ import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 
 from app.config import get_settings
 from app.db import core_session, vault_session
 from app.identity.providers import get_otp_sender
 from app.models.core import Reporter
-from app.models.vault import IdentityRecord, OtpChallenge, ReporterLink
+from app.models.vault import IdentityRecord, OtpChallenge, PushToken, ReporterLink
 from app.security import vault_crypto
 
 
@@ -136,6 +136,7 @@ def set_reporter_ban(reporter_id: str, banned: bool) -> bool:
     * vault — the identity is marked banned, so the same phone number (and, later, the
       same Aadhaar hash) cannot sign in again or register a fresh account;
     * core  — the reporter id is marked banned, so existing tokens stop working at once.
+    Banning also forgets the person's devices (push tokens).
     Nobody — not the admin who triggers it, not the government — learns who the person
     is. Returns False if the reporter id is unknown.
     """
@@ -146,6 +147,8 @@ def set_reporter_ban(reporter_id: str, banned: bool) -> bool:
             identity = vault.get(IdentityRecord, link.identity_id, with_for_update=True)
             identity.banned = banned
             identity.banned_at = now if banned else None
+            if banned:  # no more pushes; they re-register on their own if unbanned
+                vault.execute(delete(PushToken).where(PushToken.identity_id == identity.id))
             vault.commit()
     with core_session() as core:
         reporter = core.get(Reporter, reporter_id, with_for_update=True)

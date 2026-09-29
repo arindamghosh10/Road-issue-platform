@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { setUnauthorizedHandler, tokenStore } from "./api";
+import { registerForPush, unregisterPush, usePushHandlers } from "./push";
 
 type AuthState = { ready: boolean; signedIn: boolean; signIn: (token: string) => Promise<void>; signOut: () => Promise<void> };
 
@@ -16,11 +17,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUnauthorizedHandler(() => setSignedIn(false));
   }, []);
 
+  // Signed in (fresh or on launch) → make sure this phone gets "you have an update" pushes.
+  useEffect(() => { if (signedIn) registerForPush(); }, [signedIn]);
+  usePushHandlers(signedIn);
+
   const signIn = useCallback(async (token: string) => {
     await tokenStore.set(token);
     setSignedIn(true);
   }, []);
   const signOut = useCallback(async () => {
+    await unregisterPush(); // needs the login token, so before clearing it
     await tokenStore.set(null);
     setSignedIn(false);
   }, []);
