@@ -1,0 +1,55 @@
+[project]
+name = "roadwatch-backend"
+version = "0.1.0"
+description = "RoadWatch: verified-but-anonymous civic road & bridge issue reporting (backend API + workers)"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "pydantic-settings>=2.2",
+    "sqlalchemy>=2.0.29",
+    "psycopg[binary]>=3.1",
+    "alembic>=1.13",
+    "geoalchemy2>=0.15",
+    "shapely>=2.0",
+    "cryptography>=42",
+    "bcrypt>=4.1",
+    "pyjwt>=2.8",
+    "pyotp>=2.9",
+    "python-multipart>=0.0.9",
+    "pillow>=10.3",
+    # 4.x: OpenCV 5 no longer bundles the Haar face / number-plate detectors we use.
+    "opencv-python-headless>=4.9,<5",
+    "imagehash>=4.3",
+    "h3>=4.0",
+    "boto3>=1.34",
+    "httpx>=0.27",
+    "celery[redis]>=5.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "httpx>=0.27",
+    "ruff>=0.4",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency-injection markers are meant to be called in argument defaults.
+extend-immutable-calls = [
+    "fastapi.Depends", "fastapi.File", "fastapi.Form", "fastapi.Query",
+]
