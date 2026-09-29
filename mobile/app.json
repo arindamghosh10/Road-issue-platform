@@ -47,6 +47,16 @@
         {
           "color": "#2a78d6"
         }
+      ],
+      [
+        "expo-localization",
+        {
+          "supportedLocales": [
+            "en",
+            "hi",
+            "bn"
+          ]
+        }
       ]
     ]
   }

@@ -8,7 +8,8 @@ import {
   Bar, BarChart, CartesianGrid, LabelList, Line, LineChart, ResponsiveContainer,
   Tooltip, XAxis, YAxis,
 } from "recharts";
-import { fmtDate } from "@/lib/format";
+import type { MessageKey } from "@/lib/i18n";
+import { useI18n } from "@/lib/locale";
 import type { AgeingBucket, CategoryRow, TrendPoint } from "@/lib/types";
 import { useThemeColors } from "@/lib/useThemeColors";
 
@@ -35,9 +36,10 @@ function TipBox({ title, rows }: { title: string; rows: { key: string; label: st
 
 export function TrendChart({ data }: { data: TrendPoint[] }) {
   const c = useThemeColors();
+  const { t, f } = useI18n();
   const series = [
-    { key: "new", label: "New issues", color: c["--series-1"] },
-    { key: "resolved", label: "Resolved", color: c["--series-2"] },
+    { key: "new", label: t("chart.new"), color: c["--series-1"] },
+    { key: "resolved", label: t("chart.resolved"), color: c["--series-2"] },
   ] as const;
   const last = data.length - 1;
   const endLabel = (key: "new" | "resolved", label: string) =>
@@ -63,7 +65,7 @@ export function TrendChart({ data }: { data: TrendPoint[] }) {
         <ResponsiveContainer>
           <LineChart data={data} margin={{ top: 8, right: 96, bottom: 0, left: -12 }}>
             <CartesianGrid vertical={false} stroke={c["--grid"]} />
-            <XAxis dataKey="week" tickFormatter={(w: string) => fmtDate(w).replace(/ \d{4}$/, "")}
+            <XAxis dataKey="week" tickFormatter={(w: string) => f.date(w, { year: false })}
                    tick={{ fill: c["--muted"], fontSize: 12 }} axisLine={{ stroke: c["--axis"] }}
                    tickLine={false} minTickGap={24} />
             <YAxis allowDecimals={false} tick={{ fill: c["--muted"], fontSize: 12 }}
@@ -72,7 +74,7 @@ export function TrendChart({ data }: { data: TrendPoint[] }) {
               cursor={{ stroke: c["--axis"], strokeWidth: 1 }}
               content={({ active, payload, label }) =>
                 active && payload?.length ? (
-                  <TipBox title={`Week of ${fmtDate(String(label))}`}
+                  <TipBox title={t("chart.weekOf", { date: f.date(String(label)) })}
                           rows={series.map((s) => ({
                             key: s.key, label: s.label, color: s.color, line: true,
                             value: Number((payload as TipPayload).find((p) => p.dataKey === s.key)?.value ?? 0),
@@ -103,6 +105,8 @@ function BarTip({ active, payload, label, unit }: { active?: boolean; payload?: 
 
 export function CategoryBars({ data }: { data: CategoryRow[] }) {
   const c = useThemeColors();
+  const { t, f } = useI18n();
+  data = data.map((row) => ({ ...row, name: f.category(row.code, row.name) }));
   const height = Math.max(120, data.length * 36 + 16);
   return (
     <div style={{ width: "100%", height }}>
@@ -112,7 +116,7 @@ export function CategoryBars({ data }: { data: CategoryRow[] }) {
           <YAxis type="category" dataKey="name" width={170} tick={{ fill: c["--ink-2"], fontSize: 13 }}
                  axisLine={{ stroke: c["--axis"] }} tickLine={false} />
           <Tooltip cursor={{ fill: c["--grid"], opacity: 0.4 }}
-                   content={(p) => <BarTip {...(p as object)} payload={p.payload as TipPayload} label={String(p.label)} unit="issues reported" />} />
+                   content={(p) => <BarTip {...(p as object)} payload={p.payload as TipPayload} label={String(p.label)} unit={t("chart.issuesReported")} />} />
           <Bar dataKey="total" fill={c["--series-1"]} barSize={16} radius={[0, 4, 4, 0]} isAnimationActive={false}>
             <LabelList dataKey="total" position="right" fill={c["--ink-2"]} fontSize={12} />
           </Bar>
@@ -125,6 +129,10 @@ export function CategoryBars({ data }: { data: CategoryRow[] }) {
 /** Single-series columns over ordered buckets (status groups, backlog age). */
 export function ColumnBars({ data, unit }: { data: AgeingBucket[]; unit: string }) {
   const c = useThemeColors();
+  const { t } = useI18n();
+  // The API sends the four age buckets in a fixed order; label them in the reader's language.
+  const AGE: MessageKey[] = ["age.0", "age.1", "age.2", "age.3"];
+  data = data.map((row, i) => ({ ...row, bucket: AGE[i] ? t(AGE[i]) : row.bucket }));
   return (
     <div style={{ width: "100%", height: 220 }}>
       <ResponsiveContainer>

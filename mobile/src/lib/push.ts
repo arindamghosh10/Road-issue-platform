@@ -16,6 +16,7 @@ import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import { router } from "expo-router";
 import { api } from "./api";
+import { getCurrentLocale } from "./locale";
 
 const PUSH_TOKEN_KEY = "roadwatch_push_token";
 
@@ -42,7 +43,8 @@ export async function registerForPush(): Promise<void> {
     const projectId = Constants.easConfig?.projectId ?? Constants.expoConfig?.extra?.eas?.projectId;
     if (!projectId) return;
     const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
-    await api.registerPushToken(token, Platform.OS === "ios" ? "ios" : "android");
+    // The language only picks the push text ("you have an update") in Hindi/Bengali/English.
+    await api.registerPushToken(token, Platform.OS === "ios" ? "ios" : "android", getCurrentLocale());
     await SecureStore.setItemAsync(PUSH_TOKEN_KEY, token);
   } catch {
     // Offline, no Play Services, Expo Go, … — pushes are a convenience, never a blocker.

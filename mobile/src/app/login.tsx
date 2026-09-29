@@ -5,9 +5,11 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Body, Button, Card, ErrorText, Small, Title } from "@/components/ui";
+import { Body, Button, Card, ErrorText, LanguagePicker, Small, Title } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { errorText } from "@/lib/i18n";
+import { useI18n } from "@/lib/locale";
 import { normalizePhone } from "@/lib/logic";
 import { space, useTheme } from "@/lib/theme";
 
@@ -15,6 +17,7 @@ export default function Login() {
   const t = useTheme();
   const router = useRouter();
   const { signIn } = useAuth();
+  const { t: tr } = useI18n();
   const [phone, setPhone] = useState("");
   const [challenge, setChallenge] = useState<string | null>(null);
   const [code, setCode] = useState("");
@@ -25,11 +28,11 @@ export default function Login() {
 
   async function sendCode() {
     const e164 = normalizePhone(phone);
-    if (!e164) { setError("Enter a 10-digit Indian mobile number."); return; }
+    if (!e164) { setError(tr("err.invalidPhone")); return; }
     setBusy(true); setError(null);
     try {
       setChallenge((await api.requestOtp(e164)).challenge_id);
-    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+    } catch (e) { setError(errorText(tr, e)); } finally { setBusy(false); }
   }
 
   async function verify() {
@@ -39,46 +42,44 @@ export default function Login() {
       const { access_token } = await api.verifyOtp(challenge, code.trim());
       await signIn(access_token);
       router.replace("/");
-    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+    } catch (e) { setError(errorText(tr, e)); } finally { setBusy(false); }
   }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.page }}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.wrap} keyboardShouldPersistTaps="handled">
+          <LanguagePicker />
           <View style={{ gap: space(2) }}>
-            <Title>RoadWatch</Title>
-            <Body muted>Report damaged roads and bridges. We verify every report and track it until it is fixed.</Body>
+            <Title>{tr("app.name")}</Title>
+            <Body muted>{tr("app.tagline")}</Body>
           </View>
 
           <Card>
             {!challenge ? (
               <>
-                <Body>Your mobile number</Body>
+                <Body>{tr("login.phone")}</Body>
                 <TextInput style={input} value={phone} onChangeText={setPhone} keyboardType="phone-pad"
                            autoComplete="tel" placeholder="98300 12345" placeholderTextColor={t.muted}
-                           accessibilityLabel="Mobile number" maxLength={16} />
-                <Button title="Send code" onPress={sendCode} busy={busy} disabled={!phone.trim()} />
+                           accessibilityLabel={tr("login.phoneLabel")} maxLength={16} />
+                <Button title={tr("login.send")} onPress={sendCode} busy={busy} disabled={!phone.trim()} />
               </>
             ) : (
               <>
-                <Body>Enter the 6-digit code we sent</Body>
+                <Body>{tr("login.enterCode")}</Body>
                 <TextInput style={input} value={code} onChangeText={setCode} keyboardType="number-pad"
                            autoComplete="one-time-code" placeholder="123456" placeholderTextColor={t.muted}
-                           accessibilityLabel="One-time code" maxLength={6} />
-                <Button title="Sign in" onPress={verify} busy={busy} disabled={code.trim().length < 4} />
-                <Button title="Use a different number" kind="secondary" onPress={() => { setChallenge(null); setCode(""); }} />
+                           accessibilityLabel={tr("login.codeLabel")} maxLength={6} />
+                <Button title={tr("login.signIn")} onPress={verify} busy={busy} disabled={code.trim().length < 4} />
+                <Button title={tr("login.otherNumber")} kind="secondary" onPress={() => { setChallenge(null); setCode(""); }} />
               </>
             )}
             {error ? <ErrorText>{error}</ErrorText> : null}
           </Card>
 
           <Card>
-            <Body>🔒 Your identity stays private</Body>
-            <Small>
-              Your number is stored encrypted, separately from reports, and is never shared with the
-              government. Officials only see “a verified citizen reported this”.
-            </Small>
+            <Body>{tr("login.privacyTitle")}</Body>
+            <Small>{tr("login.privacy")}</Small>
           </Card>
         </ScrollView>
       </KeyboardAvoidingView>

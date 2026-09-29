@@ -151,6 +151,7 @@ SAFE_PAYLOAD_KEYS = {
     "category", "severity", "report_count", "unique_reporters", "from_status", "to_status",
     "note", "reason", "escalation_level", "to_node", "to_level", "at_top", "vision",
     "confirmed", "disputed", "reporters", "photo", "assigned_to", "also_seen",
+    "reason_code", "overdue_h",
 }
 
 

@@ -401,6 +401,8 @@ class Notification(CoreBase):
     kind: Mapped[str] = mapped_column(String(48), nullable=False)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    # Values for the app's translated text (e.g. {"reporters": 3}); see notify_reporter.
+    params: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _created_at()
 

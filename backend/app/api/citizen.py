@@ -79,7 +79,9 @@ class TokenOut(BaseModel):
 class CheckOut(BaseModel):
     name: str
     passed: bool
-    reason: str
+    reason: str  # English fallback
+    code: str = ""  # translatable id, e.g. "capture.too_old" ("" on reports made before codes)
+    params: dict = {}
 
 
 class MyReport(BaseModel):
@@ -87,7 +89,9 @@ class MyReport(BaseModel):
     status: str
     category: str
     submitted_on: date
-    rejection_reason: str | None
+    rejection_reason: str | None  # English fallback
+    rejection_code: str | None = None  # translatable id (a check code, "low_score", …)
+    rejection_params: dict = {}
     ticket_ref: str | None
     checks: list[CheckOut]
 
@@ -115,16 +119,21 @@ def otp_verify(body: OtpVerify, request: Request) -> TokenOut:
 
 
 def _to_my_report(report: Report, category_code: str, ticket_ref: str | None) -> MyReport:
-    checks = (report.verification_details or {}).get("checks", [])
+    details = report.verification_details or {}
+    checks = details.get("checks", [])
+    rejection = details.get("rejection") or {}
     return MyReport(
         id=report.id,
         status=report.status,
         category=category_code,
         submitted_on=report.received_at.date(),
         rejection_reason=report.rejection_reason,
+        rejection_code=rejection.get("code") if report.rejection_reason else None,
+        rejection_params=rejection.get("params", {}) if report.rejection_reason else {},
         ticket_ref=ticket_ref,
         checks=[CheckOut(name=c["name"], passed=not c["hard_fail"] and c["score"] >= 0.5,
-                         reason=c["reason"]) for c in checks],
+                         reason=c["reason"], code=c.get("code", ""), params=c.get("params", {}))
+                for c in checks],
     )
 
 
@@ -356,6 +365,7 @@ def my_notifications(
 class PushTokenIn(BaseModel):
     token: str = Field(max_length=250, examples=["ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]"])
     platform: str = Field(examples=["android"])
+    lang: str = Field("en", examples=["hi"], description="App language for the push text: en, hi or bn.")
 
 
 class PushTokenRef(BaseModel):
@@ -368,7 +378,7 @@ def register_push_token(body: PushTokenIn, reporter_id: str = Depends(current_re
     the identity vault, never with reports; pushes say only "you have an update"."""
     enforce("push_token_hour", reporter_id, actor_type="citizen", actor_id=reporter_id)
     try:
-        push.register_token(reporter_id, body.token, body.platform)
+        push.register_token(reporter_id, body.token, body.platform, body.lang)
     except push.PushError as exc:
         raise HTTPException(422, str(exc)) from None
 

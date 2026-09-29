@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { setUnauthorizedHandler, tokenStore } from "./api";
+import { useI18n } from "./locale";
 import { registerForPush, unregisterPush, usePushHandlers } from "./push";
 
 type AuthState = { ready: boolean; signedIn: boolean; signIn: (token: string) => Promise<void>; signOut: () => Promise<void> };
@@ -17,8 +18,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUnauthorizedHandler(() => setSignedIn(false));
   }, []);
 
-  // Signed in (fresh or on launch) → make sure this phone gets "you have an update" pushes.
-  useEffect(() => { if (signedIn) registerForPush(); }, [signedIn]);
+  // Signed in (fresh or on launch), or language changed → (re-)register this phone for
+  // "you have an update" pushes, in the app's language.
+  const { locale } = useI18n();
+  useEffect(() => { if (signedIn) registerForPush(); }, [signedIn, locale]);
   usePushHandlers(signedIn);
 
   const signIn = useCallback(async (token: string) => {

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { API_URL, setToken } from "@/lib/api";
-import { t } from "@/lib/i18n";
+import { useI18n } from "@/lib/locale";
 
 export default function GovLogin() {
   const router = useRouter();
@@ -12,6 +12,7 @@ export default function GovLogin() {
   const [totp, setTotp] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { t } = useI18n();
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -24,7 +25,7 @@ export default function GovLogin() {
         body: JSON.stringify({ email, password, totp_code: totp || null }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.detail ?? "Sign-in failed");
+      if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : t("gov.login.failed"));
       setToken(body.access_token);
       router.replace("/gov");
     } catch (err) {
@@ -39,7 +40,7 @@ export default function GovLogin() {
       <form className="card stack" onSubmit={submit} aria-labelledby="login-h">
         <h1 id="login-h">{t("gov.login.title")}</h1>
         <p className="muted small" style={{ margin: 0 }}>
-          Demo: <code>kmc@demo.roadwatch.in</code> / <code>roadwatch-demo</code>
+          {t("gov.login.demo")} <code>kmc@demo.roadwatch.in</code> / <code>roadwatch-demo</code>
         </p>
         <label className="field">{t("gov.login.email")}
           <input className="input" type="email" autoComplete="username" required value={email}

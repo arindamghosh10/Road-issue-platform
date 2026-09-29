@@ -38,6 +38,9 @@ CHROMIUM_PATH=/path/to/chrome npm run test:e2e   # or `npx playwright install ch
 - Ticket status uses reserved status colours, always paired with an icon and a label.
 - Charts: one y-axis, thin marks, hairline grid, legends and tooltips; every chart has
   a table nearby carrying the same numbers.
-- All labels go through `lib/i18n.ts` so Hindi and Bengali can be added as
-  `lib/messages/hi.ts` / `bn.ts`.
+- English, Hindi and Bengali: every label goes through `t()` from `useI18n()`
+  (`lib/locale.tsx`); strings are in `lib/messages/{en,hi,bn}.ts`. The language comes
+  from the `rw_lang` cookie (set by the header menu) or the browser's Accept-Language,
+  and is read on the server, so pages render in the right language from the start.
+  `npm test` checks every translation keeps English's placeholders.
 - The government token is kept in the browser's localStorage; signing out clears it.

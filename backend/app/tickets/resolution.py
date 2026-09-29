@@ -250,7 +250,7 @@ def _reopen(db: Session, ticket: Ticket, t: ConfirmationTally, now: datetime, wh
     ticket.fix_submitted_at = None
     add_event(db, ticket, "reopened", public=True, reason=why,
               confirmed=t.yes, disputed=t.disputed, reporters=t.reporters)
-    escalate(db, ticket, "fix disputed by reporters", now)
+    escalate(db, ticket, "fix disputed by reporters", now, reason_code="fix_disputed")
     notify_ticket_reporters(db, ticket, "ticket_reopened", f"Reopened: {ticket.public_ref}",
                             "Reporters said the fix was not complete, so the ticket was reopened "
                             "and escalated.")

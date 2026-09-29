@@ -9,6 +9,8 @@ import { FlatList, Pressable, RefreshControl, View } from "react-native";
 import { MiniMap } from "@/components/MiniMap";
 import { Body, Button, Card, Empty, ErrorText, Screen, Small, StatusPill } from "@/components/ui";
 import { api, type NearbyTicket } from "@/lib/api";
+import { errorText, type MessageKey } from "@/lib/i18n";
+import { useI18n } from "@/lib/locale";
 import { formatDistance, ticketStatusView } from "@/lib/logic";
 import { space } from "@/lib/theme";
 
@@ -16,6 +18,8 @@ type Fix = { lat: number; lon: number; accuracy: number };
 
 export default function Nearby() {
   const router = useRouter();
+  const { t: tr } = useI18n();
+  const catName = (x: NearbyTicket) => tr(`cat.${x.category}` as MessageKey);
   const [fix, setFix] = useState<Fix | null>(null);
   const [rows, setRows] = useState<NearbyTicket[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -26,13 +30,13 @@ export default function Nearby() {
     setError(null);
     try {
       const perm = await Location.requestForegroundPermissionsAsync();
-      if (!perm.granted) { setError("Allow location to see issues near you."); return; }
+      if (!perm.granted) { setError(tr("near.allowLoc")); return; }
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       const f = { lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy ?? 999 };
       setFix(f);
       setRows(await api.nearby(f.lat, f.lon));
-    } catch (e) { setError((e as Error).message); }
-  }, []);
+    } catch (e) { setError(errorText(tr, e)); }
+  }, [tr]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   async function seeToo(t: NearbyTicket) {
@@ -41,12 +45,12 @@ export default function Nearby() {
     try {
       const r = await api.iSeeThisToo(t.ref, fix.lat, fix.lon, fix.accuracy);
       setRows((prev) => prev?.map((x) => x.ref === t.ref ? { ...x, i_saw: true, also_seen: r.also_seen } : x) ?? null);
-    } catch (e) { setError((e as Error).message); } finally { setBusyRef(null); }
+    } catch (e) { setError(errorText(tr, e)); } finally { setBusyRef(null); }
   }
 
   const points = (rows ?? []).map((t) => ({
     ref: t.ref, lat: t.lat, lon: t.lon, color: ticketStatusView(t.status).color,
-    label: `${t.category_name}, ${ticketStatusView(t.status).label}`,
+    label: `${catName(t)}, ${tr(ticketStatusView(t.status).key)}`,
   }));
 
   return (
@@ -58,31 +62,34 @@ export default function Nearby() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} />}
         ListHeaderComponent={
           <View style={{ gap: space(3) }}>
-            {fix && <MiniMap points={points} me={fix} onPick={(ref) => router.push(`/ticket/${ref}`)} />}
+            {fix && <MiniMap points={points} me={fix} onPick={(ref) => router.push(`/ticket/${ref}`)}
+                             label={tr("map.label")} offlineText={tr("map.offline")} />}
             {error ? <ErrorText>{error}</ErrorText> : null}
-            {rows && rows.length > 0 && <Small>{rows.length} issue(s) within 1.5 km, nearest first</Small>}
+            {rows && rows.length > 0 && <Small>{tr("near.count", { n: rows.length })}</Small>}
           </View>
         }
-        ListEmptyComponent={rows ? <Empty title="No reported issues nearby" hint="Spotted one? Report it from the Report tab." /> : null}
+        ListEmptyComponent={rows ? <Empty title={tr("near.emptyTitle")} hint={tr("near.emptyHint")} /> : null}
         renderItem={({ item: t }) => {
           const canSee = !t.i_reported && !t.i_saw && t.status !== "resolved" && t.distance_m <= 150;
           return (
             <Card>
               <Pressable onPress={() => router.push(`/ticket/${t.ref}`)} accessibilityRole="button"
-                         accessibilityLabel={`${t.category_name}, ${formatDistance(t.distance_m)} away`}>
+                         accessibilityLabel={`${catName(t)}, ${tr("near.away", { d: formatDistance(t.distance_m) })}`}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                  <Body>{t.category_name}</Body>
+                  <Body>{catName(t)}</Body>
                   <Small>{formatDistance(t.distance_m)}</Small>
                 </View>
                 <StatusPill view={ticketStatusView(t.status)} />
                 <Small>
-                  {t.verified_reporters} verified report(s){t.also_seen ? ` · seen by ${t.also_seen} more` : ""}
-                  {t.i_reported ? " · you reported this" : t.i_saw ? " · you confirmed this" : ""}
+                  {[tr("near.verified", { n: t.verified_reporters }),
+                    t.also_seen ? tr("near.seenBy", { n: t.also_seen }) : null,
+                    t.i_reported ? tr("near.youReported") : t.i_saw ? tr("near.youConfirmed") : null,
+                  ].filter(Boolean).join(" · ")}
                 </Small>
               </Pressable>
               {canSee && (
-                <Button title="I see this too" kind="secondary" busy={busyRef === t.ref} onPress={() => seeToo(t)}
-                        accessibilityHint="Confirms this issue is still there. You must be standing near it." />
+                <Button title={tr("near.seeToo")} kind="secondary" busy={busyRef === t.ref} onPress={() => seeToo(t)}
+                        accessibilityHint={tr("near.seeTooHint")} />
               )}
             </Card>
           );

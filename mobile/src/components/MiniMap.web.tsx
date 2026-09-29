@@ -3,8 +3,9 @@ import { useEffect } from "react";
 import { useColorScheme, View } from "react-native";
 import { mapHtml, type MapPoint } from "./mapHtml";
 
-export function MiniMap({ points, me, onPick, height = 260 }: {
+export function MiniMap({ points, me, onPick, height = 260, label, offlineText }: {
   points: MapPoint[]; me: { lat: number; lon: number } | null; onPick: (ref: string) => void; height?: number;
+  label: string; offlineText: string;
 }) {
   const dark = useColorScheme() === "dark";
   useEffect(() => {
@@ -16,7 +17,7 @@ export function MiniMap({ points, me, onPick, height = 260 }: {
   }, [onPick]);
   return (
     <View style={{ height, borderRadius: 12, overflow: "hidden" }}>
-      <iframe title="Map of nearby issues" srcDoc={mapHtml(points, me, dark)}
+      <iframe title={label} srcDoc={mapHtml(points, me, dark, offlineText)}
               style={{ border: 0, width: "100%", height: "100%" }} sandbox="allow-scripts" />
     </View>
   );

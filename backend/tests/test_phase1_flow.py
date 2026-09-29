@@ -230,3 +230,25 @@ def test_public_photos_have_no_exif(client):
     data = get_store().get(get_settings().s3_bucket_public, key)
     assert dict(Image.open(BytesIO(data)).getexif()) == {}
     assert b"TestPhoneCo" not in data and b"SERIAL-123456" not in data
+
+
+def test_results_carry_translatable_codes(client):
+    """Apps show checks, rejections and notifications in Hindi/Bengali by code."""
+    headers = login(client, phone(7700))
+    ok = submit(client, headers, lat=WARD1[0], lon=WARD1[1], seed=77000).json()
+    assert ok["status"] == "verified"
+    codes = {c["name"]: c["code"] for c in ok["checks"]}
+    assert codes == {"capture_integrity": "capture.warnings", "location": "location.no_road_data",
+                     "vision": "vision.match", "duplicate_image": "duplicate.new"}
+    assert next(c for c in ok["checks"] if c["name"] == "capture_integrity")["params"]["warnings"] \
+        == ["attestation_unchecked"]
+
+    old = submit(client, headers, lat=WARD1[0] + 0.01, lon=WARD1[1], seed=77001,
+                 captured_at=datetime.now(UTC) - timedelta(hours=30)).json()
+    assert old["status"] == "rejected"
+    assert (old["rejection_code"], old["rejection_params"]) == ("capture.too_old", {"hours": 24})
+
+    inbox = client.get("/api/v1/citizen/notifications", headers=headers).json()
+    kinds = {n["kind"]: n["params"] for n in inbox}
+    assert kinds["report_verified"] == {"reporters": 1}
+    assert kinds["report_rejected"] == {"reason": "capture.too_old", "hours": 24}

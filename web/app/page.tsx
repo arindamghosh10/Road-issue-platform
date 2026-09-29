@@ -12,19 +12,20 @@ import { KpiRow } from "@/components/KpiRow";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AreaTable, AuthorityTable, Breadcrumbs } from "@/components/Tables";
 import { filterQuery, publicGet } from "@/lib/api";
-import { fmtDate } from "@/lib/format";
-import { t } from "@/lib/i18n";
+import { useI18n } from "@/lib/locale";
 import type { AreaRow, AuthorityRow, Category, CategoryRow, Filters, PublicTicket, Summary, TrendPoint } from "@/lib/types";
 import { useData } from "@/lib/useData";
 
 // MapLibre needs the browser, so the map is loaded client-side only.
 const TicketMap = dynamic(() => import("@/components/TicketMap").then((m) => m.TicketMap), { ssr: false });
 
-type Crumb = { id: number | null; name: string };
+type Crumb = { id: number | null; name: string | null };
 
 export default function PublicDashboard() {
+  const { t, f } = useI18n();
   const [filters, setFilters] = useState<Filters>({ jurisdictionId: null, category: "", days: null });
-  const [trail, setTrail] = useState<Crumb[]>([{ id: null, name: "All areas" }]);
+  // name null = "All areas", shown in the reader's language.
+  const [trail, setTrail] = useState<Crumb[]>([{ id: null, name: null }]);
   const [compare, setCompare] = useState<"district" | "municipality" | "ward">("municipality");
   const key = JSON.stringify(filters);
   const q = filterQuery(filters);
@@ -56,7 +57,7 @@ export default function PublicDashboard() {
   return (
     <div className="stack" style={{ paddingBottom: 24 }}>
       <div className="page-title stack" style={{ gap: 4 }}>
-        <h1>Road &amp; bridge issues: what&apos;s reported, what&apos;s fixed</h1>
+        <h1>{t("app.title")}</h1>
         <p className="ink-2" style={{ margin: 0 }}>{t("app.tagline")}</p>
       </div>
 
@@ -64,25 +65,25 @@ export default function PublicDashboard() {
         <div className="field">
           <span>{t("filters.area")}</span>
           <div style={{ minHeight: 36, display: "flex", alignItems: "center" }}>
-            <Breadcrumbs trail={trail} onPick={pickCrumb} />
+            <Breadcrumbs trail={trail.map((c) => ({ ...c, name: c.name ?? t("filters.allAreas") }))} onPick={pickCrumb} />
           </div>
         </div>
       </FilterBar>
 
-      {summary.error && <p className="error">Could not reach the RoadWatch API: {summary.error}</p>}
+      {summary.error && <p className="error">{t("common.apiError", { error: summary.error })}</p>}
       <div style={loadingStyle(summary.loading)}><KpiRow s={summary.data} /></div>
 
       <section className="card" aria-labelledby="map-h">
         <div className="card-head">
           <h2 id="map-h">{t("section.map")}</h2>
-          <span className="muted small">{tickets.data?.length ?? 0} issues shown · click one for details</span>
+          <span className="muted small">{t("public.mapHint", { n: tickets.data?.length ?? 0 })}</span>
         </div>
         <TicketMap tickets={tickets.data ?? []} />
       </section>
 
       <div className="grid-2">
         <section className="card" aria-labelledby="trend-h" style={loadingStyle(trend.loading)}>
-          <div className="card-head"><h2 id="trend-h">{t("section.trend")}</h2><span className="muted small">last 12 weeks</span></div>
+          <div className="card-head"><h2 id="trend-h">{t("section.trend")}</h2><span className="muted small">{t("public.last12")}</span></div>
           <TrendChart data={trend.data ?? []} />
         </section>
         <section className="card" aria-labelledby="cat-h" style={loadingStyle(cats.loading)}>
@@ -95,39 +96,39 @@ export default function PublicDashboard() {
         <div className="card-head">
           <h2 id="lb-h">{t("section.leaderboard")}</h2>
           {atRoot ? (
-            <div className="segmented" role="group" aria-label="Compare">
+            <div className="segmented" role="group" aria-label={t("public.compare")}>
               {(["district", "municipality", "ward"] as const).map((lv) => (
                 <button key={lv} type="button" aria-pressed={compare === lv} onClick={() => setCompare(lv)}>
-                  {lv === "district" ? "Districts" : lv === "municipality" ? "Municipalities" : "Wards"}
+                  {lv === "district" ? t("public.districts") : lv === "municipality" ? t("public.municipalities") : t("public.wards")}
                 </button>
               ))}
             </div>
-          ) : <span className="muted small">areas inside {trail[trail.length - 1].name}</span>}
+          ) : <span className="muted small">{t("public.areasInside", { name: trail[trail.length - 1].name ?? "" })}</span>}
         </div>
-        <p className="muted small" style={{ marginTop: -4 }}>Best resolution rate first. Click an area to see the areas inside it.</p>
+        <p className="muted small" style={{ marginTop: -4 }}>{t("public.rankHint")}</p>
         <AreaTable rows={areas.data ?? []} onDrill={drill} />
       </section>
 
       <section className="card" aria-labelledby="auth-h">
         <div className="card-head"><h2 id="auth-h">{t("section.authorities")}</h2>
-          <span className="muted small">who owns the road: municipality, state PWD, NHAI…</span></div>
+          <span className="muted small">{t("public.authHint")}</span></div>
         <AuthorityTable rows={auths.data ?? []} />
       </section>
 
       <section className="card" aria-labelledby="list-h">
-        <div className="card-head"><h2 id="list-h">Most urgent issues</h2><span className="muted small">highest priority first · table view of the map</span></div>
+        <div className="card-head"><h2 id="list-h">{t("section.urgent")}</h2><span className="muted small">{t("public.urgentHint")}</span></div>
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Ticket</th><th>Type</th><th>Area</th><th>Status</th><th className="num">Citizens</th><th>Reported</th></tr></thead>
+            <thead><tr><th>{t("table.ticket")}</th><th>{t("table.type")}</th><th>{t("table.area")}</th><th>{t("table.status")}</th><th className="num">{t("table.citizens")}</th><th>{t("table.reportedOn")}</th></tr></thead>
             <tbody>
               {(tickets.data ?? []).slice(0, 25).map((tk) => (
                 <tr key={tk.ref}>
                   <td><Link href={`/tickets/${tk.ref}`}>{tk.ref}</Link></td>
-                  <td>{tk.category_name}</td>
+                  <td>{f.category(tk.category, tk.category_name)}</td>
                   <td>{tk.areas[tk.areas.length - 1]?.name ?? "—"}</td>
                   <td><StatusBadge status={tk.status} /></td>
                   <td className="num">{tk.verified_reporters}</td>
-                  <td className="num">{fmtDate(tk.reported_on)}</td>
+                  <td className="num">{f.date(tk.reported_on)}</td>
                 </tr>
               ))}
             </tbody>

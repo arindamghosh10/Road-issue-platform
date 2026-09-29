@@ -1,27 +1,35 @@
 import type { Metadata } from "next";
+import { cookies, headers } from "next/headers";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 import { Header } from "@/components/Header";
-import { t } from "@/lib/i18n";
+import { SiteFooter, SiteNotice } from "@/components/SiteChrome";
+import { isLocale, LOCALE_COOKIE, negotiateLocale, translator, type Locale } from "@/lib/i18n";
+import { I18nProvider } from "@/lib/locale";
 
-export const metadata: Metadata = {
-  title: "RoadWatch",
-  description: t("app.tagline"),
-};
+/** The visitor's language: their saved choice, else their browser's preference. */
+async function requestLocale(): Promise<Locale> {
+  const saved = (await cookies()).get(LOCALE_COOKIE)?.value;
+  if (isLocale(saved)) return saved;
+  return negotiateLocale((await headers()).get("accept-language"));
+}
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export async function generateMetadata(): Promise<Metadata> {
+  const t = translator(await requestLocale());
+  return { title: t("app.name"), description: t("app.tagline") };
+}
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await requestLocale();
   return (
-    <html lang="en">
+    <html lang={locale}>
       <body>
-        <Header />
-        <div className="notice">
-          <div className="container">{t("sample.notice")}</div>
-        </div>
-        <main className="container">{children}</main>
-        <footer className="container footer">
-          Reporter identities are never shared with government. Map data © OpenStreetMap
-          contributors.
-        </footer>
+        <I18nProvider initial={locale}>
+          <Header />
+          <SiteNotice />
+          <main className="container">{children}</main>
+          <SiteFooter />
+        </I18nProvider>
       </body>
     </html>
   );

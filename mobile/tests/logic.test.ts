@@ -29,10 +29,10 @@ test("formatDistance", () => {
 test("every status has an icon and words, not colour alone", () => {
   for (const s of ["open", "acknowledged", "in_progress", "fix_submitted", "resolved", "reopened"] as const) {
     const v = ticketStatusView(s);
-    assert.ok(v.icon && v.label && v.color);
+    assert.ok(v.icon && v.key && v.color);
   }
   for (const s of ["under_verification", "verified", "rejected"] as const) {
     const v = reportStatusView(s);
-    assert.ok(v.icon && v.label && v.color);
+    assert.ok(v.icon && v.key && v.color);
   }
 });

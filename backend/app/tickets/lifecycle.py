@@ -99,7 +99,8 @@ def restart_sla(db: Session, ticket: Ticket, now: datetime) -> None:
     ticket.sla_warned_at = None
 
 
-def escalate(db: Session, ticket: Ticket, reason: str, now: datetime | None = None) -> int | None:
+def escalate(db: Session, ticket: Ticket, reason: str, now: datetime | None = None,
+             reason_code: str | None = None, overdue_h: int | None = None) -> int | None:
     """Move responsibility one level up the jurisdiction path, restart the SLA clock at
     the new level, record it publicly and alert the new level's officials.
     Returns the new node id (unchanged if already at the top)."""
@@ -114,8 +115,9 @@ def escalate(db: Session, ticket: Ticket, reason: str, now: datetime | None = No
     restart_sla(db, ticket, now)
 
     node = db.get(Jurisdiction, ticket.escalated_node_id)
-    add_event(db, ticket, "escalated", public=True, reason=reason,
-              escalation_level=ticket.escalation_level,
+    # reason_code (+ overdue_h) lets dashboards show the reason in the reader's language.
+    add_event(db, ticket, "escalated", public=True, reason=reason, reason_code=reason_code,
+              overdue_h=overdue_h, escalation_level=ticket.escalation_level,
               to_node=node.name, to_level=node.level, at_top=(idx == 0))
     notify_officials(
         db, officials_for_node(db, ticket.escalated_node_id), ticket, "escalated",

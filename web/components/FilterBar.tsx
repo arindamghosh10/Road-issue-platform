@@ -1,6 +1,6 @@
 "use client";
 
-import { t } from "@/lib/i18n";
+import { useI18n } from "@/lib/locale";
 import type { Category, Filters } from "@/lib/types";
 
 const PERIODS: (number | null)[] = [null, 7, 30, 90, 365];
@@ -17,15 +17,16 @@ export function FilterBar({
   onChange: (f: Filters) => void;
   children?: React.ReactNode;
 }) {
+  const { t, f } = useI18n();
   return (
-    <div className="filters" role="group" aria-label="Filters">
+    <div className="filters" role="group" aria-label={t("filters.label")}>
       <div className="field">
         <span>{t("filters.period")}</span>
         <div className="segmented">
           {PERIODS.map((d) => (
             <button key={d ?? "all"} type="button" aria-pressed={filters.days === d}
                     onClick={() => onChange({ ...filters, days: d })}>
-              {d == null ? t("filters.allTime") : `${d}d`}
+              {d == null ? t("filters.allTime") : t("filters.days", { n: d })}
             </button>
           ))}
         </div>
@@ -35,7 +36,7 @@ export function FilterBar({
         <select className="select" value={filters.category}
                 onChange={(e) => onChange({ ...filters, category: e.target.value })}>
           <option value="">{t("filters.allCategories")}</option>
-          {categories.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+          {categories.map((c) => <option key={c.code} value={c.code}>{f.category(c.code, c.name)}</option>)}
         </select>
       </label>
       {children}

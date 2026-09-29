@@ -299,6 +299,36 @@ Code map: `app/identity/push.py`, `app/notifications/service.py`, `mobile/src/li
   couldn't use its index (now `@>`), and leaderboards tested every area against every
   ticket (572 → 85 ms). Every dashboard query is now under 100 ms at that size.
 
+## Languages: English, Hindi, Bengali
+
+Every screen of the citizen app and both dashboards is available in English, हिन्दी and
+বাংলা.
+
+- **Choosing:** the app follows the phone's language and has a picker on the sign-in
+  screen and under My reports. The dashboards follow the browser's language and have a
+  menu in the header. The choice is remembered (on the phone; in a cookie on the web),
+  and the dashboard server renders the right language from the first page load.
+- **Server text is sent as codes.** Verification results, rejection reasons,
+  notifications and escalation reasons carry a stable code plus values (for example
+  `capture.too_old` with `{"hours": 24}`), and the apps turn them into sentences. The
+  English text is still sent, as a fallback for older reports and future codes.
+  Category, status and area-level names are translated by code as well; place names
+  (wards, municipalities) and officials' own notes stay as written.
+- **Pushes** use the app's language too: the app sends it with its push token (stored
+  in the vault next to the token), and the generic "you have an update" text goes out
+  in Hindi, Bengali or English.
+- **Digits** stay Latin (0–9) in every language, so ticket numbers, dates and chart
+  axes read the same everywhere; month names are translated.
+- **Checks:** TypeScript refuses to build if a Hindi or Bengali string is missing, and
+  `npm test` (in `web/` and `mobile/`) fails if a translation drops a `{placeholder}`
+  or is still in English.
+- **Adding a language:** copy `messages/en.ts`, translate it, and add the code to
+  `LOCALES` in `lib/i18n.ts` (web) and `src/lib/i18n.ts` (app), plus `BODIES` in
+  `backend/app/identity/push.py`.
+
+The translations are careful drafts, not yet reviewed by native speakers; see
+"Before a pilot".
+
 ## Free services used
 
 | Need | Dev | When hosted |
@@ -345,7 +375,9 @@ Stubbed or needing your decision:
 - **Real boundaries and roads**: replace the SAMPLE wards with real LGD codes and ward
   maps, and import the OSM road network (then turn on `REQUIRE_ROAD_SNAP`).
 - **Gemini key** for real photo checks (`VISION_PROVIDER=gemini`).
-- **Hindi / Bengali** text in the web and mobile apps.
+- **Native-speaker review** of the Hindi and Bengali text (drafts are in
+  `web/lib/messages/` and `mobile/src/lib/messages/`), ideally by staff of the pilot
+  municipality, who know the official terms they use.
 - **Hosting**: set real secrets (`VAULT_ENCRYPTION_KEY`, `IDENTITY_HASH_PEPPER`,
   `JWT_SECRET`), `APP_ENV=prod`, `TRUST_PROXY=true` behind a proxy, and keep the vault
   keys with the platform, not government tenants.

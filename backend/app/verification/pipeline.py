@@ -7,7 +7,7 @@ Weights reflect how much each signal says about "is this a real, current problem
 spot": the vision model counts most, but can never pass a report on its own.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
@@ -29,9 +29,14 @@ class Verdict:
     score: float
     reason: str
     results: list[CheckResult]
+    code: str = "verified"  # translatable id of `reason` (see CheckResult.code)
+    params: dict = field(default_factory=dict)
 
     def details(self) -> dict:
-        return {"score": self.score, "checks": [r.as_dict() for r in self.results]}
+        out = {"score": self.score, "checks": [r.as_dict() for r in self.results]}
+        if not self.verified:
+            out["rejection"] = {"code": self.code, "params": self.params}
+        return out
 
 
 def run_pipeline(ctx: ReportContext, db: Session, attestation: AttestationVerifier) -> Verdict:
@@ -45,9 +50,10 @@ def run_pipeline(ctx: ReportContext, db: Session, attestation: AttestationVerifi
 
     hard = next((r for r in results if r.hard_fail), None)
     if hard:
-        return Verdict(False, score, hard.reason, results)
+        return Verdict(False, score, hard.reason, results, hard.code, hard.params)
     threshold = get_settings().verification_threshold
     if score < threshold:
         weakest = min(results, key=lambda r: r.score)
-        return Verdict(False, score, f"Could not verify this report ({weakest.reason})", results)
+        return Verdict(False, score, f"Could not verify this report ({weakest.reason})", results,
+                       "low_score", {"weakest": weakest.code, **weakest.params})
     return Verdict(True, score, "Verified.", results)

@@ -146,3 +146,18 @@ def test_ban_forgets_devices(client):
     assert r.status_code == 200
     with vault_engine().connect() as c:
         assert c.execute(text("SELECT count(*) FROM push_tokens")).scalar() == 0
+
+
+def test_push_text_follows_the_app_language(client):
+    from app.identity.push import BODIES
+
+    headers = login(client, phone(4080))
+    r = client.put("/api/v1/citizen/push-token", headers=headers,
+                   json={"token": token(80), "platform": "android", "lang": "bn"})
+    assert r.status_code == 204
+    ref = submit(client, headers, lat=WARD1[0], lon=WARD1[1], seed=40800).json()["ticket_ref"]
+    [message] = get_push_sender().sent
+    assert message.body == BODIES["bn"] and ref not in message.body
+    bad = client.put("/api/v1/citizen/push-token", headers=headers,
+                     json={"token": token(81), "platform": "android", "lang": "fr"})
+    assert bad.status_code == 422

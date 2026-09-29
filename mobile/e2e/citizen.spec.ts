@@ -68,3 +68,27 @@ test("citizen journey: camera report → verified → nearby → 'Is it fixed?' 
   const after = await (await request.get(`${API}/api/v1/public/tickets/${ref}`)).json();
   expect(["resolved", "fix_submitted"]).toContain(after.status); // resolved once ≥ 50% said yes
 });
+
+test("language picker switches the app to Hindi and Bengali and remembers it", async ({ page }) => {
+  await page.goto("/login");
+  await expect(page.getByRole("button", { name: "Send code" })).toBeVisible();
+  await page.getByRole("radio", { name: "हिन्दी" }).click();
+  await expect(page.getByRole("button", { name: "कोड भेजें" })).toBeVisible();
+  await expect(page.getByText("🔒 आपकी पहचान गोपनीय रहती है")).toBeVisible();
+  await page.getByLabel("मोबाइल नंबर").fill("12345");
+  await page.getByRole("button", { name: "कोड भेजें" }).click();
+  await expect(page.getByText("10 अंकों का भारतीय मोबाइल नंबर डालें।")).toBeVisible();
+
+  await page.getByRole("radio", { name: "বাংলা" }).click();
+  await expect(page.getByRole("button", { name: "কোড পাঠান" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "কোড পাঠান" })).toBeVisible(); // remembered
+});
+
+test("a Hindi phone opens the app in Hindi", async ({ browser }) => {
+  const context = await browser.newContext({ locale: "hi-IN", viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  await page.goto(`${process.env.APP_URL ?? "http://localhost:8081"}/login`);
+  await expect(page.getByRole("button", { name: "कोड भेजें" })).toBeVisible();
+  await context.close();
+});

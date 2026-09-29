@@ -132,11 +132,15 @@ def _drop_pushes_on_rollback(session: Session) -> None:
 
 
 def notify_reporter(
-    db: Session, reporter_id: str, ticket: Ticket | None, kind: str, title: str, body: str
+    db: Session, reporter_id: str, ticket: Ticket | None, kind: str, title: str, body: str,
+    params: dict | None = None,
 ) -> None:
+    """`title`/`body` are English; the app shows its own translation keyed on `kind`
+    (plus `params` and the ticket ref), falling back to this text for unknown kinds."""
     db.add(Notification(
         recipient_type=RecipientType.REPORTER.value, recipient_id=reporter_id,
         ticket_id=ticket.id if ticket else None, kind=kind, title=title, body=body,
+        params=params or {},
     ))
     db.info.setdefault(_PUSH_KEY, set()).add(reporter_id)
 

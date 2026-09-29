@@ -63,6 +63,14 @@ The test signs in with a code read from the log, takes a photo with the fake cam
 submits a pothole, checks it's verified and appears under Nearby, then has the KMC
 official submit a repair photo and answers "Yes, fixed" from the Inbox.
 
+## Languages
+
+English, हिन्दी and বাংলা. The app starts in the phone's language (via
+`expo-localization`) and has a picker on the sign-in screen and under My reports; the
+choice is saved on the phone. Strings live in `src/lib/messages/{en,hi,bn}.ts`; the
+rules that turn server codes (check results, rejections, notifications, errors) into
+sentences are in `src/lib/i18n.ts` and are unit-tested in `tests/i18n.test.ts`.
+
 ## Push notifications
 
 After sign-in the app asks for notification permission and registers its Expo push
@@ -85,5 +93,4 @@ skips push and everything else works the same.
 
 - **Push notifications** are built but need an EAS project to switch on (below). Until
   then the Inbox refreshes when opened.
-- **Hindi / Bengali** strings: labels are plain English in the screens for now.
 - **Device attestation**: stubbed (Phase 5).

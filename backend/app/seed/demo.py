@@ -96,7 +96,7 @@ def _time_travel(rng: random.Random, ref: str, performance: float, now: datetime
                 node = db.get(Jurisdiction, t.escalated_node_id) if t.escalated_node_id else None
                 db.add(TicketEvent(ticket_id=t.id, type="escalated", actor_type="system",
                                    created_at=t.sla_due_at,
-                                   payload={"public": True, "reason": "SLA breached (demo history)",
+                                   payload={"public": True, "reason": "SLA breached (demo history)", "reason_code": "sla_breached",
                                             "to_node": node.name if node else None, "escalation_level": 1}))
             t.status = TicketStatus.RESOLVED.value
             t.resolved_at = fixed_at

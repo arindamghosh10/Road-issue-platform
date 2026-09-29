@@ -52,7 +52,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new ApiError(0, "Can't reach RoadWatch. Check your internet connection.");
   }
   if (!res.ok) {
-    let message = `Something went wrong (${res.status}).`;
+    let message = ""; // errorText() in i18n.ts turns this into a translated sentence
     try {
       const body = await res.json();
       if (typeof body.detail === "string") message = body.detail;
@@ -69,10 +69,12 @@ const post = <T>(path: string, body: unknown) =>
 
 // --- Types (mirror backend/app/api/citizen.py and views.py) ---------------------------
 
-export interface Check { name: string; passed: boolean; reason: string }
+// `reason` is the server's English; `code` + `params` are translated in i18n.ts.
+export interface Check { name: string; passed: boolean; reason: string; code?: string; params?: Record<string, unknown> }
 export interface MyReport {
   id: string; status: ReportStatus; category: string; submitted_on: string;
-  rejection_reason: string | null; ticket_ref: string | null; checks: Check[];
+  rejection_reason: string | null; rejection_code?: string | null; rejection_params?: Record<string, unknown>;
+  ticket_ref: string | null; checks: Check[];
 }
 export interface Area { id: number; name: string; level: string }
 export interface Ticket {
@@ -88,7 +90,7 @@ export interface PendingConfirmation {
 }
 export interface Notice {
   id: number; kind: string; title: string; body: string; ticket_ref: string | null;
-  created_at: string; read: boolean;
+  created_at: string; read: boolean; params?: Record<string, unknown>;
 }
 
 // --- Calls --------------------------------------------------------------------------------
@@ -116,8 +118,8 @@ export const api = {
   notifications: () => request<Notice[]>("/citizen/notifications"),
 
   // Push token → identity vault (encrypted). See src/lib/push.ts.
-  registerPushToken: (token: string, platform: "android" | "ios") =>
-    request<void>("/citizen/push-token", { method: "PUT", body: JSON.stringify({ token, platform }) }),
+  registerPushToken: (token: string, platform: "android" | "ios", lang: string) =>
+    request<void>("/citizen/push-token", { method: "PUT", body: JSON.stringify({ token, platform, lang }) }),
   removePushToken: (token: string) => post<void>("/citizen/push-token/remove", { token }),
 };
 

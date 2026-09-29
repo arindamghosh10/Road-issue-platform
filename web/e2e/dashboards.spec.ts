@@ -80,3 +80,36 @@ test("a ward officer sees only their own ward", async ({ page }) => {
     expect(a).toMatch(/^KMC Ward 1\b/);
   }
 });
+
+test("language menu switches to Hindi and Bengali and remembers the choice", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Most urgent issues" })).toBeVisible();
+
+  await page.getByLabel("Language").selectOption("hi");
+  await expect(page.getByRole("heading", { name: "सबसे ज़रूरी समस्याएँ" })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "hi");
+  await expect(page.getByLabel("मुख्य आँकड़े").getByText("दर्ज समस्याएँ")).toBeVisible();
+  // Category names come from the translation, not the API's English.
+  await expect(page.getByRole("cell", { name: "गड्ढा" }).first()).toBeVisible();
+
+  // The choice survives a reload, and the server renders it straight away.
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("lang", "hi");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("सड़क और पुल की समस्याएँ: क्या दर्ज हुआ, क्या ठीक हुआ");
+
+  await page.getByLabel("भाषा").selectOption("bn");
+  await expect(page.getByRole("heading", { name: "সবচেয়ে জরুরি সমস্যা" })).toBeVisible();
+  const ref = await page.locator("table a[href^='/tickets/']").first().innerText();
+  await page.goto(`/tickets/${ref}`);
+  await expect(page.getByRole("heading", { name: "ইতিহাস" })).toBeVisible();
+  await expectNoIdentity(page);
+});
+
+test("a Bengali browser gets Bengali on the first visit", async ({ browser }) => {
+  const context = await browser.newContext({ locale: "bn-IN" });
+  const page = await context.newPage();
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("lang", "bn");
+  await expect(page.getByRole("heading", { name: "সবচেয়ে জরুরি সমস্যা" })).toBeVisible();
+  await context.close();
+});

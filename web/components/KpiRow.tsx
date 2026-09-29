@@ -1,5 +1,6 @@
-import { fmtCount, fmtHours, fmtPct } from "@/lib/format";
-import { t } from "@/lib/i18n";
+"use client";
+
+import { useI18n } from "@/lib/locale";
 import type { Summary } from "@/lib/types";
 
 function Tile({ label, value, note }: { label: string; value: string; note?: string }) {
@@ -14,18 +15,19 @@ function Tile({ label, value, note }: { label: string; value: string; note?: str
 
 /** Headline numbers as stat tiles (a number is not a chart). */
 export function KpiRow({ s }: { s: Summary | null }) {
+  const { t, f } = useI18n();
   const v = (x: string) => (s ? x : "…");
   return (
-    <section className="kpis" aria-label="Key figures">
-      <Tile label={t("kpi.reported")} value={v(fmtCount(s?.total ?? 0))}
-            note={s ? `${fmtCount(s.verified_reporters)} ${t("kpi.citizens")}` : undefined} />
-      <Tile label={t("kpi.open")} value={v(fmtCount(s?.open ?? 0))}
-            note={s ? `${fmtCount(s.by_status.acknowledged + s.by_status.in_progress)} being worked on` : undefined} />
-      <Tile label={t("kpi.resolved")} value={v(fmtCount(s?.resolved ?? 0))}
-            note={s ? `${fmtPct(s.resolution_rate)} ${t("kpi.resolutionRate").toLowerCase()}` : undefined} />
-      <Tile label={t("kpi.avgTime")} value={v(fmtHours(s?.avg_resolution_hours))} />
-      <Tile label={t("kpi.sla")} value={v(fmtPct(s?.sla_compliance))}
-            note={s ? t("kpi.slaHint", { breaches: s.breaches }) : undefined} />
+    <section className="kpis" aria-label={t("kpi.label")}>
+      <Tile label={t("kpi.reported")} value={v(f.count(s?.total ?? 0))}
+            note={s ? t("kpi.citizens", { n: f.count(s.verified_reporters) }) : undefined} />
+      <Tile label={t("kpi.open")} value={v(f.count(s?.open ?? 0))}
+            note={s ? t("kpi.working", { n: f.count(s.by_status.acknowledged + s.by_status.in_progress) }) : undefined} />
+      <Tile label={t("kpi.resolved")} value={v(f.count(s?.resolved ?? 0))}
+            note={s ? t("kpi.rate", { pct: f.pct(s.resolution_rate) }) : undefined} />
+      <Tile label={t("kpi.avgTime")} value={v(f.hours(s?.avg_resolution_hours))} />
+      <Tile label={t("kpi.sla")} value={v(f.pct(s?.sla_compliance))}
+            note={s ? t("kpi.slaHint", { n: f.count(s.breaches) }) : undefined} />
     </section>
   );
 }

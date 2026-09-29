@@ -7,7 +7,8 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { GeoJSONSource, Map as MlMap, StyleSpecification } from "maplibre-gl";
-import { STATUS_GROUPS, STATUS_HEX, groupLabel, statusGroup, statusLabel } from "@/lib/format";
+import { STATUS_GROUPS, STATUS_HEX, statusGroup } from "@/lib/format";
+import { useI18n } from "@/lib/locale";
 import type { PublicTicket } from "@/lib/types";
 
 const STYLE_URL = process.env.NEXT_PUBLIC_MAP_STYLE ?? "https://tiles.openfreemap.org/styles/positron";
@@ -37,7 +38,7 @@ function toGeoJSON(tickets: PublicTicket[]): GeoJSON.FeatureCollection {
     features: tickets.map((t) => ({
       type: "Feature",
       geometry: { type: "Point", coordinates: [t.lon, t.lat] },
-      properties: { ref: t.ref, category: t.category_name, status: t.status,
+      properties: { ref: t.ref, category: t.category_name, code: t.category, status: t.status,
                     group: statusGroup(t.status), reporters: t.verified_reporters },
     })),
   };
@@ -48,6 +49,10 @@ export function TicketMap({ tickets, linkBase = "/tickets" }: { tickets: PublicT
   const map = useRef<MlMap | null>(null);
   const ready = useRef(false);
   const latest = useRef(tickets);
+  // Map event handlers are registered once; they read the current language through this ref.
+  const { t, f } = useI18n();
+  const i18n = useRef({ t, f });
+  useEffect(() => { i18n.current = { t, f }; }, [t, f]);
   const router = useRouter();
   latest.current = tickets;
 
@@ -93,9 +98,10 @@ export function TicketMap({ tickets, linkBase = "/tickets" }: { tickets: PublicT
           // Build with textContent: labels are data, never HTML.
           const box = document.createElement("div");
           const title = document.createElement("strong");
-          title.textContent = `${p.category} · ${p.ref}`;
+          const { t: tr, f: fm } = i18n.current;
+          title.textContent = `${fm.category(p.code, p.category)} · ${p.ref}`;
           const line = document.createElement("div");
-          line.textContent = `${statusLabel(p.status as PublicTicket["status"])} · ${p.reporters} verified report(s)`;
+          line.textContent = tr("map.popup", { status: fm.status(p.status as PublicTicket["status"]), n: p.reporters });
           box.append(title, line);
           popup.setLngLat((f.geometry as GeoJSON.Point).coordinates as [number, number]).setDOMContent(box).addTo(m);
         });
@@ -127,17 +133,17 @@ export function TicketMap({ tickets, linkBase = "/tickets" }: { tickets: PublicT
 
   return (
     <div>
-      <div ref={el} className="map" role="region" aria-label="Map of reported issues" />
-      <div className="legend" aria-label="Map legend">
+      <div ref={el} className="map" role="region" aria-label={t("map.label")} />
+      <div className="legend" aria-label={t("map.legend")}>
         {STATUS_GROUPS.map((g) => (
           <span key={g.key} className="legend-item">
             <span className="badge-dot" style={{ background: g.color }} aria-hidden>{g.icon}</span>
-            {groupLabel(g.key)}
+            {f.group(g.key)}
           </span>
         ))}
         <span className="legend-item">
           <span className="badge-dot" style={{ background: "#2a78d6", color: "#fff" }} aria-hidden>n</span>
-          Group of nearby issues (click to zoom)
+          {t("map.cluster")}
         </span>
       </div>
     </div>

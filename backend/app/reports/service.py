@@ -111,7 +111,8 @@ def process_report(report_id: uuid.UUID) -> None:
         try:
             clean = sanitize(store.get(s.s3_bucket_original, report.photo_original_key))
         except InvalidImage as exc:
-            _reject(report, "The photo could not be read.", {"error": str(exc)})
+            _reject(report, "The photo could not be read.",
+                    {"error": str(exc), "rejection": {"code": "photo_unreadable", "params": {}}})
             db.commit()
             return
         report.phash = clean.phash
@@ -145,7 +146,8 @@ def process_report(report_id: uuid.UUID) -> None:
         if not verdict.verified:
             _reject(report, verdict.reason, details)
             notify_reporter(db, report.reporter_id, None, "report_rejected",
-                            "Your report could not be verified", verdict.reason)
+                            "Your report could not be verified", verdict.reason,
+                            params={"reason": verdict.code, **verdict.params})
             db.commit()
             log.info("report %s rejected: %s", report.id, verdict.reason)
             return
@@ -160,7 +162,8 @@ def process_report(report_id: uuid.UUID) -> None:
         notify_reporter(db, report.reporter_id, ticket, "report_verified",
                         f"Report verified: {ticket.public_ref}",
                         f"Your report is part of ticket {ticket.public_ref} "
-                        f"({ticket.unique_reporters} verified citizen(s) so far).")
+                        f"({ticket.unique_reporters} verified citizen(s) so far).",
+                        params={"reporters": ticket.unique_reporters})
         if created:
             notify_officials(
                 db, officials_for_node(db, placement.lowest_node_id, placement.authority_id),

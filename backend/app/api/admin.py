@@ -138,6 +138,8 @@ def ban_sender(report_id: uuid.UUID, body: BanIn,
         for r in reports:
             r.status = ReportStatus.REJECTED.value
             r.rejection_reason = "Withdrawn: sender banned for abuse."
+            r.verification_details = {**(r.verification_details or {}),
+                                      "rejection": {"code": "withdrawn", "params": {}}}
         withdrawn = len(reports)
         db.flush()
         for ticket in db.scalars(select(Ticket).where(Ticket.id.in_(ticket_ids)).with_for_update()):

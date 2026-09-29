@@ -12,7 +12,9 @@ import { useEffect, useRef, useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Body, Button, Card, ErrorText, Screen, Small, StatusPill, Title } from "@/components/ui";
 import { api, appendPhoto, type MyReport } from "@/lib/api";
-import { CATEGORIES, CHECK_NAMES, gpsQuality, reportStatusView } from "@/lib/logic";
+import { checkLines, codeText, errorText, type MessageKey } from "@/lib/i18n";
+import { useI18n } from "@/lib/locale";
+import { CATEGORIES, gpsQuality, reportStatusView } from "@/lib/logic";
 import { radius, space, useTheme } from "@/lib/theme";
 
 type Shot = { uri: string; lat: number; lon: number; accuracy: number | null; takenAt: string };
@@ -20,6 +22,7 @@ type Step = "camera" | "details" | "sending" | "done";
 
 export default function ReportScreen() {
   const t = useTheme();
+  const { t: tr } = useI18n();
   const router = useRouter();
   const camera = useRef<CameraView>(null);
   const [camPerm, requestCam] = useCameraPermissions();
@@ -61,14 +64,14 @@ export default function ReportScreen() {
         Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
       ]);
       if ((pos as { mocked?: boolean }).mocked) {
-        setError("Your phone reports a simulated location. Turn off mock location to report.");
+        setError(tr("cam.mock"));
         return;
       }
       setShot({ uri: pic.uri, lat: pos.coords.latitude, lon: pos.coords.longitude,
                 accuracy: pos.coords.accuracy, takenAt: new Date().toISOString() });
       setStep("details");
     } catch (e) {
-      setError(`Could not take the photo: ${(e as Error).message}`);
+      setError(tr("cam.failed", { error: (e as Error).message }));
     } finally { setCapturing(false); }
   }
 
@@ -88,7 +91,7 @@ export default function ReportScreen() {
       setResult(await api.submitReport(form));
       setStep("done");
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorText(tr, e));
       setStep("details");
     }
   }
@@ -103,13 +106,10 @@ export default function ReportScreen() {
     return (
       <Screen style={styles.pad}>
         <Card>
-          <Title>Camera and location needed</Title>
-          <Body muted>
-            Reports are photographed live in the app, and tagged with where they were taken, so they
-            reach the right ward and authority. Your gallery is never accessed.
-          </Body>
-          <Button title="Allow camera and location" onPress={askPermissions} />
-          {camPerm.canAskAgain === false && <Small>Permission was denied. Enable it in your phone's Settings.</Small>}
+          <Title>{tr("perm.title")}</Title>
+          <Body muted>{tr("perm.body")}</Body>
+          <Button title={tr("perm.allow")} onPress={askPermissions} />
+          {camPerm.canAskAgain === false && <Small>{tr("perm.denied")}</Small>}
         </Card>
       </Screen>
     );
@@ -122,33 +122,35 @@ export default function ReportScreen() {
       <Screen>
         <ScrollView contentContainerStyle={[styles.pad, { gap: space(4) }]}>
           <Card>
-            <Title>{pending ? "Checking your report…" : result.status === "verified" ? "Thank you!" : "Report not verified"}</Title>
+            <Title>{pending ? tr("result.checking") : result.status === "verified" ? tr("result.thanks") : tr("result.notVerified")}</Title>
             <StatusPill view={reportStatusView(result.status)} />
             {result.status === "verified" && (
-              <Body muted>
-                Your report is part of issue {result.ticket_ref}. The responsible authority has been notified,
-                and you'll be asked to confirm when they say it's fixed.
-              </Body>
+              <Body muted>{tr("result.verifiedBody", { ref: result.ticket_ref ?? "" })}</Body>
             )}
-            {result.status === "rejected" && <Body muted>{result.rejection_reason}</Body>}
-            {pending && <Body muted>This usually takes a few seconds. You can leave this screen; it's saved in “My reports”.</Body>}
+            {result.status === "rejected" && (
+              <Body muted>{codeText(tr, result.rejection_code, result.rejection_params, result.rejection_reason ?? "")}</Body>
+            )}
+            {pending && <Body muted>{tr("result.pending")}</Body>}
           </Card>
           {result.checks.length > 0 && (
             <Card>
-              <Body>What we checked</Body>
-              {result.checks.map((c) => (
-                <View key={c.name} style={{ flexDirection: "row", gap: space(2) }}>
-                  <Text style={{ color: c.passed ? t.good : t.danger, fontSize: 16 }}>{c.passed ? "✓" : "✕"}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Body>{CHECK_NAMES[c.name] ?? c.name}</Body>
-                    <Small>{c.reason}</Small>
+              <Body>{tr("result.checked")}</Body>
+              {result.checks.map((c) => {
+                const line = checkLines(tr, c);
+                return (
+                  <View key={c.name} style={{ flexDirection: "row", gap: space(2) }}>
+                    <Text style={{ color: c.passed ? t.good : t.danger, fontSize: 16 }}>{c.passed ? "✓" : "✕"}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Body>{line.title}</Body>
+                      <Small>{line.detail}</Small>
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </Card>
           )}
-          {result.ticket_ref && <Button title="View the issue" kind="secondary" onPress={() => router.push(`/ticket/${result.ticket_ref}`)} />}
-          <Button title="Report another issue" onPress={reset} />
+          {result.ticket_ref && <Button title={tr("result.view")} kind="secondary" onPress={() => router.push(`/ticket/${result.ticket_ref}`)} />}
+          <Button title={tr("result.another")} onPress={reset} />
         </ScrollView>
       </Screen>
     );
@@ -160,37 +162,37 @@ export default function ReportScreen() {
     return (
       <Screen>
         <ScrollView contentContainerStyle={[styles.pad, { gap: space(4) }]} keyboardShouldPersistTaps="handled">
-          <Image source={{ uri: shot.uri }} style={styles.preview} accessibilityLabel="Your photo" />
+          <Image source={{ uri: shot.uri }} style={styles.preview} accessibilityLabel={tr("details.photo")} />
           <Small>
-            {gps === "good" ? "📍 Location recorded" : gps === "weak" ? "📍 Location is approximate — fine, but a clearer sky view helps" :
-              "📍 Location too imprecise — step outside and retake the photo"}
-            {shot.accuracy != null ? ` (±${Math.round(shot.accuracy)} m)` : ""}
+            {tr(gps === "good" ? "gps.good" : gps === "weak" ? "gps.weak" : "gps.poor")}
+            {shot.accuracy != null ? ` ${tr("gps.accuracy", { m: Math.round(shot.accuracy) })}` : ""}
           </Small>
 
-          <Body>What's the problem?</Body>
+          <Body>{tr("details.what")}</Body>
           <View style={styles.chips} accessibilityRole="radiogroup">
             {CATEGORIES.map((c) => {
               const on = category === c.code;
+              const label = tr(`cat.${c.code}` as MessageKey);
               return (
                 <Pressable key={c.code} onPress={() => setCategory(c.code)} accessibilityRole="radio"
-                           accessibilityState={{ checked: on }} accessibilityLabel={c.label}
+                           accessibilityState={{ checked: on }} accessibilityLabel={label}
                            style={[styles.chip, { borderColor: on ? t.accent : t.border,
                                                   backgroundColor: on ? t.accentWash : t.surface }]}>
-                  <Text style={{ color: on ? t.accentInk : t.ink, fontSize: 15 }}>{c.icon}  {c.label}</Text>
+                  <Text style={{ color: on ? t.accentInk : t.ink, fontSize: 15 }}>{c.icon}  {label}</Text>
                 </Pressable>
               );
             })}
           </View>
 
-          <TextInput value={description} onChangeText={setDescription} placeholder="Anything else? (optional)"
-                     placeholderTextColor={t.muted} multiline maxLength={500} accessibilityLabel="Description"
+          <TextInput value={description} onChangeText={setDescription} placeholder={tr("details.more")}
+                     placeholderTextColor={t.muted} multiline maxLength={500} accessibilityLabel={tr("details.descLabel")}
                      style={[styles.textarea, { color: t.ink, borderColor: t.border, backgroundColor: t.surface }]} />
-          <Small>Don't include your name or phone number — reports are anonymous.</Small>
+          <Small>{tr("details.anon")}</Small>
 
           {error ? <ErrorText>{error}</ErrorText> : null}
-          <Button title="Submit report" onPress={submit} busy={step === "sending"}
+          <Button title={tr("details.submit")} onPress={submit} busy={step === "sending"}
                   disabled={!category || gps === "too-poor"} />
-          <Button title="Retake photo" kind="secondary" onPress={reset} disabled={step === "sending"} />
+          <Button title={tr("details.retake")} kind="secondary" onPress={reset} disabled={step === "sending"} />
         </ScrollView>
       </Screen>
     );
@@ -201,10 +203,10 @@ export default function ReportScreen() {
     <View style={{ flex: 1, backgroundColor: "#000" }}>
       <CameraView ref={camera} style={{ flex: 1 }} facing="back" />
       <View style={styles.cameraBar}>
-        <Text style={styles.cameraHint}>Point at the damage and tap to take a photo</Text>
+        <Text style={styles.cameraHint}>{tr("cam.hint")}</Text>
         {error ? <Text style={[styles.cameraHint, { color: "#ffb4ab" }]} accessibilityRole="alert">{error}</Text> : null}
         <Pressable onPress={capture} disabled={capturing} accessibilityRole="button"
-                   accessibilityLabel="Take photo" style={({ pressed }) => [styles.shutter, { opacity: capturing || pressed ? 0.6 : 1 }]}>
+                   accessibilityLabel={tr("cam.take")} style={({ pressed }) => [styles.shutter, { opacity: capturing || pressed ? 0.6 : 1 }]}>
           <View style={styles.shutterInner} />
         </Pressable>
       </View>

@@ -39,9 +39,15 @@ TOKEN_RE = re.compile(r"^Expo(nent)?PushToken\[[A-Za-z0-9_-]{10,200}\]$")
 PLATFORMS = {"android", "ios"}
 MAX_DEVICES = 5  # per person; registering a 6th drops the least recently seen
 
-# The only text that ever leaves for Expo / Google / Apple. See rule 2 above.
+# The only text that ever leaves for Expo / Google / Apple (rule 2 above), in the
+# language the app registered with.
 TITLE = "RoadWatch"
 BODY = "You have an update on your reports. Open the app to see it."
+BODIES = {
+    "en": BODY,
+    "hi": "आपकी शिकायतों पर नई जानकारी है। देखने के लिए ऐप खोलें।",
+    "bn": "আপনার অভিযোগ নিয়ে নতুন খবর আছে। দেখতে অ্যাপ খুলুন।",
+}
 DATA = {"screen": "inbox"}
 
 
@@ -53,7 +59,7 @@ def _link(vault, reporter_id: str) -> ReporterLink | None:
     return vault.scalar(select(ReporterLink).where(ReporterLink.reporter_id == reporter_id))
 
 
-def register_token(reporter_id: str, token: str, platform: str) -> None:
+def register_token(reporter_id: str, token: str, platform: str, lang: str = "en") -> None:
     """Remember this device for this person. Re-registering the same token only refreshes
     it; a token last used by another account moves to this one (the phone changed hands
     or the user switched accounts)."""
@@ -61,6 +67,8 @@ def register_token(reporter_id: str, token: str, platform: str) -> None:
         raise PushError("Not a valid push token.")
     if platform not in PLATFORMS:
         raise PushError("platform must be android or ios.")
+    if lang not in BODIES:
+        raise PushError("lang must be en, hi or bn.")
     lookup = vault_crypto.keyed_hash(token, "push")
     now = datetime.now(UTC)
     with vault_session() as vault:
@@ -73,7 +81,7 @@ def register_token(reporter_id: str, token: str, platform: str) -> None:
             row = PushToken(token_encrypted=vault_crypto.encrypt(token), token_lookup_hash=lookup,
                             identity_id=link.identity_id, platform=platform)
             vault.add(row)
-        row.identity_id, row.platform, row.last_seen_at = link.identity_id, platform, now
+        row.identity_id, row.platform, row.lang, row.last_seen_at = link.identity_id, platform, lang, now
         vault.flush()
         stale = vault.scalars(
             select(PushToken.id).where(PushToken.identity_id == link.identity_id)
@@ -183,14 +191,15 @@ def deliver(reporter_ids: list[str]) -> int:
         return 0
     with vault_session() as vault:
         rows = vault.execute(
-            select(PushToken.id, PushToken.token_encrypted)
+            select(PushToken.id, PushToken.token_encrypted, PushToken.lang)
             .join(ReporterLink, ReporterLink.identity_id == PushToken.identity_id)
             .join(IdentityRecord, IdentityRecord.id == PushToken.identity_id)
             .where(ReporterLink.reporter_id.in_(set(reporter_ids)), IdentityRecord.banned.is_(False))
         ).all()
     if not rows:
         return 0
-    messages = [PushMessage(vault_crypto.decrypt(enc), TITLE, BODY, DATA) for _, enc in rows]
+    messages = [PushMessage(vault_crypto.decrypt(enc), TITLE, BODIES.get(lang, BODY), DATA)
+                for _, enc, lang in rows]
     outcomes = get_push_sender().send(messages)
     dead = [row.id for row, outcome in zip(rows, outcomes, strict=True) if outcome == "dead"]
     if dead:

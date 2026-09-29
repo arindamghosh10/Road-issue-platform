@@ -402,6 +402,7 @@ class NotificationOut(BaseModel):
     ticket_ref: str | None
     created_at: datetime
     read: bool
+    params: dict = {}  # values for the app's translated text, keyed on `kind`
 
 
 def notification_rows(db: Session, recipient_type: str, recipient_id: str, unread_only: bool):
@@ -416,7 +417,7 @@ def notification_rows(db: Session, recipient_type: str, recipient_id: str, unrea
     if unread_only:
         query = query.where(Notification.read_at.is_(None))
     return [NotificationOut(id=n.id, kind=n.kind, title=n.title, body=n.body, ticket_ref=ref,
-                            created_at=n.created_at, read=n.read_at is not None)
+                            created_at=n.created_at, read=n.read_at is not None, params=n.params)
             for n, ref in db.execute(query)]
 
 

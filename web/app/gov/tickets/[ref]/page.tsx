@@ -6,8 +6,7 @@ import { useState } from "react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Photos, Timeline } from "@/components/Tables";
 import { govGet, govPost } from "@/lib/api";
-import { fmtDate, fmtSlaLeft, statusLabel } from "@/lib/format";
-import { t } from "@/lib/i18n";
+import { useI18n } from "@/lib/locale";
 import type { Assignee, GovTicketDetail, TicketStatus } from "@/lib/types";
 import { useData } from "@/lib/useData";
 import { useOfficial } from "@/lib/useOfficial";
@@ -35,6 +34,7 @@ export default function GovTicketPage() {
   const [notePublic, setNotePublic] = useState(false);
   const [assignee, setAssignee] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
+  const { t, f } = useI18n();
 
   const detail = useData<GovTicketDetail>(me ? `${ref}|${version}` : null, () => govGet(`/tickets/${encodeURIComponent(ref)}`));
   const assignees = useData<Assignee[]>(me ? ref : null, () => govGet(`/tickets/${encodeURIComponent(ref)}/assignees`));
@@ -57,7 +57,7 @@ export default function GovTicketPage() {
     if (!photo) return;
     await act(async () => {
       const pos = await getPosition().catch(() => {
-        throw new Error("Location is needed: allow location access and take the photo at the site.");
+        throw new Error(t("gt.needLocation"));
       });
       const form = new FormData();
       form.set("photo", photo);
@@ -67,44 +67,44 @@ export default function GovTicketPage() {
       form.set("capture_source", "in_app_camera");
       await govPost(`/tickets/${encodeURIComponent(ref)}/fix-proof`, form);
       setPhoto(null);
-    }, "Repair photo accepted. The original reporters have been asked to confirm the fix.");
+    }, t("gt.fixAccepted"));
   }
 
-  if (detail.error) return <div className="page-title"><p className="error">{detail.error}</p><Link href="/gov">Back</Link></div>;
+  if (detail.error) return <div className="page-title"><p className="error">{detail.error}</p><Link href="/gov">{t("common.back")}</Link></div>;
   const d = detail.data;
-  if (!d) return <p className="page-title muted">Loading…</p>;
+  if (!d) return <p className="page-title muted">{t("common.loading")}</p>;
   const tk = d.ticket;
   const c = d.confirmations;
 
   return (
     <div className="stack" style={{ paddingBottom: 24 }}>
       <div className="page-title stack" style={{ gap: 6 }}>
-        <Link href="/gov" className="small">← Work queue</Link>
+        <Link href="/gov" className="small">← {t("gt.backQueue")}</Link>
         <div className="row" style={{ justifyContent: "space-between" }}>
-          <h1>{tk.category_name} <span className="muted" style={{ fontWeight: 400 }}>· {tk.ref}</span></h1>
+          <h1>{f.category(tk.category, tk.category_name)} <span className="muted" style={{ fontWeight: 400 }}>· {tk.ref}</span></h1>
           <StatusBadge status={tk.status} />
         </div>
         <div className="ink-2">{tk.areas.map((a) => a.name).join(" › ")} · {t("ticket.authority")}: {tk.authority ?? "—"}</div>
       </div>
 
-      <section className="kpis" aria-label="Ticket facts">
-        <div className="tile"><div className="tile-label">Verified citizens</div><div className="tile-value">{tk.verified_reporters}</div>
-          <div className="tile-note">{tk.report_count} report(s)</div></div>
-        <div className="tile"><div className="tile-label">Severity · priority</div><div className="tile-value">{tk.severity} / 5</div>
-          <div className="tile-note">priority score {tk.priority}</div></div>
+      <section className="kpis" aria-label={t("ticket.facts")}>
+        <div className="tile"><div className="tile-label">{t("ticket.verified")}</div><div className="tile-value">{tk.verified_reporters}</div>
+          <div className="tile-note">{t("gt.reports", { n: tk.report_count })}</div></div>
+        <div className="tile"><div className="tile-label">{t("gt.sevPriority")}</div><div className="tile-value">{tk.severity} / 5</div>
+          <div className="tile-note">{t("gt.priority", { n: tk.priority })}</div></div>
         <div className="tile"><div className="tile-label">{t("ticket.deadline")}</div>
-          <div className="tile-value" style={{ fontSize: 20 }}>{tk.status === "fix_submitted" ? "Paused" : fmtSlaLeft(tk.sla_hours_left)}</div>
-          <div className="tile-note">{fmtDate(tk.sla_due_at)} · answerable: {tk.responsible_area}</div></div>
-        <div className="tile"><div className="tile-label">Fix confirmations</div>
+          <div className="tile-value" style={{ fontSize: 20 }}>{tk.status === "fix_submitted" ? t("gt.paused") : f.slaLeft(tk.sla_hours_left)}</div>
+          <div className="tile-note">{t("gt.answerable", { date: f.date(tk.sla_due_at), area: tk.responsible_area ?? "—" })}</div></div>
+        <div className="tile"><div className="tile-label">{t("gt.confirmations")}</div>
           {tk.status === "fix_submitted" || c.yes + c.no + c.partly > 0 ? (
             <>
-              <div className="tile-value">{c.yes} of {c.reporters}</div>
-              <div className="tile-note">{c.no} said no · {c.partly} said partly</div>
+              <div className="tile-value">{t("gt.confirmCount", { yes: c.yes, n: c.reporters })}</div>
+              <div className="tile-note">{t("gt.confirmNote", { no: c.no, partly: c.partly })}</div>
             </>
           ) : (
             <>
-              <div className="tile-value" style={{ fontSize: 18 }}>Not requested yet</div>
-              <div className="tile-note">asked after a repair photo is accepted</div>
+              <div className="tile-value" style={{ fontSize: 18 }}>{t("gt.notRequested")}</div>
+              <div className="tile-note">{t("gt.notRequestedNote")}</div>
             </>
           )}</div>
       </section>
@@ -113,60 +113,59 @@ export default function GovTicketPage() {
 
       <div className="grid-2">
         <section className="card stack" aria-labelledby="act-h">
-          <h2 id="act-h">Actions</h2>
+          <h2 id="act-h">{t("section.actions")}</h2>
           <div className="row">
             {(NEXT[tk.status] ?? []).map((s) => (
               <button key={s} className="btn btn-primary" disabled={busy} type="button"
-                      onClick={() => act(() => govPost(`/tickets/${encodeURIComponent(ref)}/status`, { status: s }), `Marked ${statusLabel(s).toLowerCase()}.`)}>
-                Mark {statusLabel(s).toLowerCase()}
+                      onClick={() => act(() => govPost(`/tickets/${encodeURIComponent(ref)}/status`, { status: s }), t("gt.marked", { status: f.status(s) }))}>
+                {t("gt.mark", { status: f.status(s) })}
               </button>
             ))}
-            {!NEXT[tk.status]?.length && <span className="muted small">No manual status change available now.</span>}
+            {!NEXT[tk.status]?.length && <span className="muted small">{t("gt.noManual")}</span>}
           </div>
 
           <div className="row" style={{ alignItems: "end" }}>
-            <label className="field" style={{ flex: 1 }}>Assign to
+            <label className="field" style={{ flex: 1 }}>{t("gt.assignTo")}
               <select className="select" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
-                <option value="">{tk.assigned_to ? `Currently: ${tk.assigned_to}` : "Choose an official"}</option>
+                <option value="">{tk.assigned_to ? t("gt.currently", { name: tk.assigned_to }) : t("gt.choose")}</option>
                 {(assignees.data ?? []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             </label>
             <button className="btn" type="button" disabled={busy || !assignee}
-                    onClick={() => act(() => govPost(`/tickets/${encodeURIComponent(ref)}/assign`, { official_id: assignee }), "Assigned.")}>
-              Assign
+                    onClick={() => act(() => govPost(`/tickets/${encodeURIComponent(ref)}/assign`, { official_id: assignee }), t("gt.assigned"))}>
+              {t("gt.assign")}
             </button>
           </div>
 
           <div className="stack" style={{ gap: 6 }}>
-            <label className="field">Add a note
+            <label className="field">{t("gt.note")}
               <textarea className="textarea" value={note} maxLength={2000} onChange={(e) => setNote(e.target.value)} />
             </label>
             <div className="row" style={{ justifyContent: "space-between" }}>
               <label className="row small" style={{ gap: 6 }}>
                 <input type="checkbox" checked={notePublic} onChange={(e) => setNotePublic(e.target.checked)} />
-                Show on the public timeline
+                {t("gt.notePublic")}
               </label>
               <button className="btn" type="button" disabled={busy || !note.trim()}
                       onClick={() => act(async () => {
                         await govPost(`/tickets/${encodeURIComponent(ref)}/notes`, { text: note, public: notePublic });
                         setNote("");
-                      }, "Note added.")}>
-                Add note
+                      }, t("gt.noteAdded"))}>
+                {t("gt.noteAdd")}
               </button>
             </div>
           </div>
 
           {CAN_FIX.includes(tk.status) && (
             <div className="stack" style={{ gap: 6, borderTop: "1px solid var(--grid)", paddingTop: 12 }}>
-              <h2>Submit repair photo</h2>
+              <h2>{t("gt.fixTitle")}</h2>
               <p className="muted small" style={{ margin: 0 }}>
-                Take the photo at the site after the repair (within 50 m). On a phone this opens the camera.
-                The vision model compares it with the citizen&apos;s photo, then the original reporters are asked to confirm.
+                {t("gt.fixHelp")}
               </p>
-              <input type="file" accept="image/*" capture="environment" aria-label="Repair photo"
+              <input type="file" accept="image/*" capture="environment" aria-label={t("gt.fixLabel")}
                      onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
               <div><button className="btn btn-primary" type="button" disabled={busy || !photo} onClick={submitFix}>
-                Submit repair photo
+                {t("gt.fixSubmit")}
               </button></div>
             </div>
           )}
@@ -179,7 +178,7 @@ export default function GovTicketPage() {
       </div>
 
       <section className="card" aria-labelledby="gph-h">
-        <div className="card-head"><h2 id="gph-h">{t("section.photos")}</h2><span className="muted small">sanitized citizen photos</span></div>
+        <div className="card-head"><h2 id="gph-h">{t("section.photos")}</h2><span className="muted small">{t("gt.photosHint")}</span></div>
         <Photos urls={tk.photos} />
       </section>
     </div>

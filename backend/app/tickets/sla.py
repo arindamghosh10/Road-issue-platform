@@ -62,7 +62,8 @@ def run_sla_sweep(now: datetime | None = None) -> SweepResult:
             if ticket.sla_due_at <= now:
                 overdue_h = (now - ticket.sla_due_at).total_seconds() / 3600
                 ticket.sla_breached = True
-                escalate(db, ticket, f"SLA breached ({overdue_h:.0f} h overdue)", now)
+                escalate(db, ticket, f"SLA breached ({overdue_h:.0f} h overdue)", now,
+                         reason_code="sla_breached", overdue_h=round(overdue_h))
                 result.escalated.append(ticket.public_ref)
             elif ticket.sla_warned_at is None and ticket.sla_started_at is not None:
                 ratio = float(tenant_config(db, ticket).get("sla_warning_ratio", DEFAULT_WARNING_RATIO))

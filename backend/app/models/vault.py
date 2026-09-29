@@ -103,6 +103,8 @@ class PushToken(VaultBase):
     # HMAC of the token: finds "is this device already registered?" without decrypting.
     token_lookup_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     platform: Mapped[str] = mapped_column(String(10), nullable=False)  # "android" | "ios"
+    # App language, so the (generic) push arrives in Hindi, Bengali or English.
+    lang: Mapped[str] = mapped_column(String(5), nullable=False, server_default="en")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

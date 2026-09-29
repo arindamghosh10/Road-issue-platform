@@ -12,8 +12,7 @@ import { KpiRow } from "@/components/KpiRow";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AreaTable, Breadcrumbs } from "@/components/Tables";
 import { downloadCsv, filterQuery, govGet, publicGet } from "@/lib/api";
-import { fmtSlaLeft, levelLabel } from "@/lib/format";
-import { t } from "@/lib/i18n";
+import { useI18n } from "@/lib/locale";
 import type {
   AgeingBucket, AreaRow, Category, CategoryRow, Filters, GovTicket, NotificationItem, Summary, TrendPoint,
 } from "@/lib/types";
@@ -25,26 +24,28 @@ const TicketMap = dynamic(() => import("@/components/TicketMap").then((m) => m.T
 type Crumb = { id: number | null; name: string };
 
 function SlaCell({ hours, status }: { hours: number | null; status: GovTicket["status"] }) {
-  if (status === "fix_submitted") return <span className="muted">paused (citizens checking)</span>;
+  const { t, f } = useI18n();
+  if (status === "fix_submitted") return <span className="muted">{t("gov.paused")}</span>;
   if (hours == null) return <span>—</span>;
   const overdue = hours < 0;
   const soon = !overdue && hours < 24;
   return (
     <span style={{ color: overdue ? "var(--danger-text)" : undefined, fontWeight: overdue || soon ? 600 : 400 }}>
-      {overdue ? "⚠ " : soon ? "◷ " : ""}{fmtSlaLeft(hours)}
+      {overdue ? "⚠ " : soon ? "◷ " : ""}{f.slaLeft(hours)}
     </span>
   );
 }
 
 export default function GovDashboard() {
   const { me, logout } = useOfficial();
+  const { t, f } = useI18n();
   const [filters, setFilters] = useState<Filters>({ jurisdictionId: null, category: "", days: null });
   const [trail, setTrail] = useState<Crumb[]>([]);
   const [exportError, setExportError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (me && trail.length === 0) setTrail([{ id: me.node_id, name: me.node ?? "My area" }]);
-  }, [me, trail.length]);
+    if (me && trail.length === 0) setTrail([{ id: me.node_id, name: me.node ?? t("gov.myArea") }]);
+  }, [me, trail.length, t]);
 
   const ready = me ? JSON.stringify(filters) : null;
   const q = filterQuery(filters);
@@ -60,7 +61,7 @@ export default function GovDashboard() {
     govGet(`/stats/areas${filterQuery({ ...filters, jurisdictionId: null }, { parent_id: parent })}`));
   const inbox = useData<NotificationItem[]>(me ? "inbox" : null, () => govGet("/notifications?unread_only=true"));
 
-  if (!me) return <p className="page-title muted">Loading…</p>;
+  if (!me) return <p className="page-title muted">{t("common.loading")}</p>;
 
   const drill = (row: AreaRow) => {
     setTrail([...trail, { id: row.id, name: row.name }]);
@@ -76,14 +77,14 @@ export default function GovDashboard() {
     <div className="stack" style={{ paddingBottom: 24 }}>
       <div className="page-title row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
         <div className="stack" style={{ gap: 2 }}>
-          <h1>{me.node ?? "All areas"}</h1>
+          <h1>{me.node ?? t("filters.allAreas")}</h1>
           <span className="ink-2 small">
-            {me.name} · {me.node_level ? levelLabel(me.node_level) : me.role}
-            {(inbox.data?.length ?? 0) > 0 && <> · <strong>{inbox.data!.length}</strong> unread notification(s)</>}
+            {me.name} · {me.node_level ? f.level(me.node_level) : me.role}
+            {(inbox.data?.length ?? 0) > 0 && <> · {t("gov.unread", { n: inbox.data!.length })}</>}
           </span>
         </div>
         <div className="row">
-          <button className="btn" type="button" onClick={() => downloadCsv(filters).catch((e) => setExportError(e.message))}>
+          <button className="btn" type="button" onClick={() => downloadCsv(filters).catch(() => setExportError(t("gov.exportFailed")))}>
             {t("gov.export")}
           </button>
           <button className="btn" type="button" onClick={logout}>{t("nav.logout")}</button>
@@ -105,21 +106,22 @@ export default function GovDashboard() {
       <section className="card" aria-labelledby="queue-h">
         <div className="card-head">
           <h2 id="queue-h">{t("section.queue")}</h2>
-          <span className="muted small">{queue.data?.length ?? 0} open · most urgent first</span>
+          <span className="muted small">{t("gov.queueHint", { n: queue.data?.length ?? 0 })}</span>
         </div>
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>Ticket</th><th>Type</th><th>Ward / area</th><th>Status</th>
-                <th className="num">Severity</th><th className="num">Citizens</th><th>Deadline</th><th>Assigned</th></tr>
+              <tr><th>{t("table.ticket")}</th><th>{t("table.type")}</th><th>{t("table.wardArea")}</th><th>{t("table.status")}</th>
+                <th className="num">{t("table.severity")}</th><th className="num">{t("table.citizens")}</th>
+                <th>{t("table.deadline")}</th><th>{t("table.assigned")}</th></tr>
             </thead>
             <tbody>
               {(queue.data ?? []).map((tk) => (
                 <tr key={tk.ref}>
                   <td><Link href={`/gov/tickets/${tk.ref}`}>{tk.ref}</Link></td>
-                  <td>{tk.category_name}</td>
+                  <td>{f.category(tk.category, tk.category_name)}</td>
                   <td>{tk.areas[tk.areas.length - 1]?.name ?? "—"}
-                    {tk.escalation_level > 0 && <div className="muted small">escalated to {tk.responsible_area}</div>}</td>
+                    {tk.escalation_level > 0 && <div className="muted small">{t("gov.escalatedTo", { area: tk.responsible_area ?? "" })}</div>}</td>
                   <td><StatusBadge status={tk.status} /></td>
                   <td className="num">{tk.severity}</td>
                   <td className="num">{tk.verified_reporters}</td>
@@ -129,7 +131,7 @@ export default function GovDashboard() {
               ))}
             </tbody>
           </table>
-          {queue.data?.length === 0 && <p className="muted">Nothing open in this area. 🎉</p>}
+          {queue.data?.length === 0 && <p className="muted">{t("gov.nothingOpen")}</p>}
         </div>
       </section>
 
@@ -141,7 +143,7 @@ export default function GovDashboard() {
       <section className="card" aria-labelledby="drill-h">
         <div className="card-head">
           <h2 id="drill-h">{t("section.leaderboard")}</h2>
-          <span className="muted small">areas inside {trail[trail.length - 1]?.name}</span>
+          <span className="muted small">{t("public.areasInside", { name: trail[trail.length - 1]?.name ?? "" })}</span>
         </div>
         <AreaTable rows={areas.data ?? []} onDrill={drill} />
       </section>
@@ -153,7 +155,7 @@ export default function GovDashboard() {
         </section>
         <section className="card" aria-labelledby="age-h">
           <div className="card-head"><h2 id="age-h">{t("section.ageing")}</h2></div>
-          <ColumnBars data={ageing.data ?? []} unit="open issues" />
+          <ColumnBars data={ageing.data ?? []} unit={t("chart.openIssues")} />
         </section>
       </div>
 

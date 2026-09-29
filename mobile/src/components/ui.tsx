@@ -1,6 +1,8 @@
 // Small shared UI pieces. Touch targets are ≥ 44pt; status is always icon + words + colour.
 
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { LOCALE_NAMES, LOCALES, type MessageKey } from "@/lib/i18n";
+import { useI18n } from "@/lib/locale";
 import { radius, space, useTheme } from "@/lib/theme";
 
 export function Screen({ children, style }: { children?: React.ReactNode; style?: ViewStyle }) {
@@ -53,14 +55,16 @@ export function Button({
   );
 }
 
-export function StatusPill({ view }: { view: { label: string; icon: string; color: string } }) {
+export function StatusPill({ view }: { view: { key: MessageKey; icon: string; color: string } }) {
   const t = useTheme();
+  const { t: tr } = useI18n();
+  const label = tr(view.key);
   return (
-    <View style={styles.pill} accessible accessibilityLabel={`Status: ${view.label}`}>
+    <View style={styles.pill} accessible accessibilityLabel={label}>
       <View style={[styles.pillDot, { backgroundColor: view.color }]}>
         <Text style={styles.pillIcon}>{view.icon}</Text>
       </View>
-      <Text style={[styles.small, { color: t.ink2 }]}>{view.label}</Text>
+      <Text style={[styles.small, { color: t.ink2 }]}>{label}</Text>
     </View>
   );
 }
@@ -90,3 +94,26 @@ const styles = StyleSheet.create({
   pillDot: { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   pillIcon: { fontSize: 11, fontWeight: "700", color: "#0b0b0b" },
 });
+
+/** English / हिन्दी / বাংলা, each written in its own script so anyone can find theirs. */
+export function LanguagePicker() {
+  const t = useTheme();
+  const { locale, setLocale, t: tr } = useI18n();
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space(2), alignItems: "center" }}
+          accessibilityRole="radiogroup" accessibilityLabel={tr("lang.label")}>
+      {LOCALES.map((l) => {
+        const on = l === locale;
+        return (
+          <Pressable key={l} onPress={() => setLocale(l)} accessibilityRole="radio"
+                     accessibilityState={{ checked: on }} accessibilityLabel={LOCALE_NAMES[l]}
+                     style={{ minHeight: 40, paddingHorizontal: space(3), borderRadius: 20, borderWidth: 1,
+                              justifyContent: "center", borderColor: on ? t.accent : t.border,
+                              backgroundColor: on ? t.accentWash : t.surface }}>
+            <Text style={{ color: on ? t.accentInk : t.ink, fontSize: 15 }}>{LOCALE_NAMES[l]}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
