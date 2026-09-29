@@ -17,7 +17,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
 from pydantic import BaseModel
-from sqlalchemy import ColumnElement, and_, case, exists, func, or_, select
+from sqlalchemy import ColumnElement, and_, case, func, or_, select, true
 from sqlalchemy.orm import Session, aliased
 
 from app.models.core import (
@@ -26,7 +26,6 @@ from app.models.core import (
     Jurisdiction,
     JurisdictionLevel,
     Ticket,
-    TicketEvent,
     TicketStatus,
 )
 from app.tickets.lifecycle import SLA_ACTIVE
@@ -47,7 +46,7 @@ def filters(
     """Combine the access scope with the dashboard's filter row."""
     conditions = [scope]
     if jurisdiction_id is not None:
-        conditions.append(Ticket.jurisdiction_path.any(jurisdiction_id))
+        conditions.append(Ticket.jurisdiction_path.contains([jurisdiction_id]))
     if category:
         category_id = db.scalar(select(Category.id).where(Category.code == category))
         if category_id is None:
@@ -59,14 +58,10 @@ def filters(
 
 
 def _breached() -> ColumnElement[bool]:
-    """Ticket ever missed a deadline: an SLA escalation was recorded, or it is overdue now."""
-    escalated_for_sla = exists().where(
-        TicketEvent.ticket_id == Ticket.id,
-        TicketEvent.type == "escalated",
-        TicketEvent.payload["reason"].astext.like("SLA breached%"),
-    )
+    """Ticket ever missed a deadline: flagged when the SLA sweep escalated it, or overdue
+    right now (before the next sweep). A column read, not a per-ticket history lookup."""
     overdue_now = and_(Ticket.status.in_(SLA_ACTIVE), Ticket.sla_due_at < func.now())
-    return or_(escalated_for_sla, overdue_now)
+    return or_(Ticket.sla_breached, overdue_now)
 
 
 def _measures(breached: ColumnElement[bool]):
@@ -144,10 +139,15 @@ def areas(
     """Per-area figures. `parent_id` → the children of that area (drill-down);
     `level` → every area at that level (e.g. all wards); neither → top-level areas."""
     area = aliased(Jurisdiction)
+    # Each ticket already carries its full area path, so "unnest" it into one row per
+    # (ticket, area) and hash-join to the areas: one pass over the tickets instead of
+    # testing every area against every ticket.
+    node = func.unnest(Ticket.jurisdiction_path).table_valued("node_id").render_derived(name="node")
     query = (
         select(area.id, area.name, area.level, *_measures(_breached()))
         .select_from(Ticket)
-        .join(area, Ticket.jurisdiction_path.any(area.id))
+        .join(node, true())
+        .join(area, area.id == node.c.node_id)
         .where(where)
         .group_by(area.id, area.name, area.level)
     )
@@ -225,9 +225,8 @@ def trends(db: Session, where: ColumnElement[bool], weeks: int = 12) -> list[Tre
     this_monday = today - timedelta(days=today.weekday())
     start = this_monday - timedelta(weeks=weeks - 1)
     # Weeks start on Monday, in UTC regardless of the database's timezone setting.
-    week_of = lambda col: func.date_trunc("week", func.timezone("UTC", col))
     def per_week(col) -> dict:
-        week = week_of(col)
+        week = func.date_trunc("week", func.timezone("UTC", col))
         rows = db.execute(select(week, func.count()).where(where, col >= start).group_by(week))
         return {k.date(): v for k, v in rows.all()}
 

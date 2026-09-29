@@ -90,6 +90,7 @@ def _time_travel(rng: random.Random, ref: str, performance: float, now: datetime
         if fixed_at < now and rng.random() < performance + 0.15:
             late = fixed_at > t.sla_due_at
             if late:
+                t.sla_breached = True
                 t.escalation_level = 1
                 t.escalated_node_id = t.jurisdiction_path[-2] if len(t.jurisdiction_path) > 1 else None
                 node = db.get(Jurisdiction, t.escalated_node_id) if t.escalated_node_id else None

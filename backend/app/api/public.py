@@ -58,7 +58,7 @@ def ticket_filters(
     if category:
         query = query.join(Category, Category.id == Ticket.category_id).where(Category.code == category)
     if jurisdiction_id is not None:
-        query = query.where(Ticket.jurisdiction_path.any(jurisdiction_id))
+        query = query.where(Ticket.jurisdiction_path.contains([jurisdiction_id]))
     if bbox:
         try:
             min_lon, min_lat, max_lon, max_lat = (float(v) for v in bbox.split(","))

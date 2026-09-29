@@ -262,6 +262,9 @@ class Ticket(CoreBase):
         CheckConstraint(in_enum("status", TicketStatus), name="status"),
         CheckConstraint("severity BETWEEN 1 AND 5", name="severity"),
         Index("ix_tickets_location", "location", postgresql_using="gist"),
+        # Distance checks in metres use location::geography; this index makes them fast
+        # (a plain geometry index can't serve a geography comparison).
+        Index("ix_tickets_location_geog", text("(location::geography)"), postgresql_using="gist"),
         Index("ix_tickets_jurisdiction_path", "jurisdiction_path", postgresql_using="gin"),
     )
 
@@ -295,6 +298,8 @@ class Ticket(CoreBase):
     sla_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sla_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     sla_warned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Set once the ticket has ever missed a deadline (for dashboard SLA compliance).
+    sla_breached: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     fix_submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = mapped_column(

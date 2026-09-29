@@ -61,6 +61,7 @@ def run_sla_sweep(now: datetime | None = None) -> SweepResult:
 
             if ticket.sla_due_at <= now:
                 overdue_h = (now - ticket.sla_due_at).total_seconds() / 3600
+                ticket.sla_breached = True
                 escalate(db, ticket, f"SLA breached ({overdue_h:.0f} h overdue)", now)
                 result.escalated.append(ticket.public_ref)
             elif ticket.sla_warned_at is None and ticket.sla_started_at is not None:

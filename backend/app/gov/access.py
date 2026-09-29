@@ -27,7 +27,7 @@ def ticket_scope(db: Session, official: Official) -> ColumnElement[bool]:
         return true()
     reach = []
     if official.node_id is not None:
-        reach.append(Ticket.jurisdiction_path.any(official.node_id))
+        reach.append(Ticket.jurisdiction_path.contains([official.node_id]))
     if official.authority_id is not None:
         reach.append(Ticket.authority_id == official.authority_id)
     if not reach:
@@ -35,7 +35,7 @@ def ticket_scope(db: Session, official: Official) -> ColumnElement[bool]:
     condition = or_(*reach)
     if official.tenant_id is not None:
         root = db.scalar(select(Tenant.root_node_id).where(Tenant.id == official.tenant_id))
-        condition = condition & Ticket.jurisdiction_path.any(root)
+        condition = condition & Ticket.jurisdiction_path.contains([root])
     return condition
 
 

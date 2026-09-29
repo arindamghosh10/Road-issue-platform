@@ -8,9 +8,9 @@ publishes a public dashboard of what the government has fixed.
 **Reporters are verified but anonymous:** the platform knows each reporter is a real,
 unique citizen; the government never learns who they are.
 
-Full product brief: [`docs/brief.md`](docs/brief.md). Build status: **Phase 4 (citizen
-mobile app) done** — backend, dashboards and the citizen app are complete; hardening
-(Phase 5) is next.
+Full product brief: [`docs/brief.md`](docs/brief.md). Build status: **all five phases
+done** — backend, dashboards, citizen app and hardening. What's still stubbed or needs a
+decision is listed under "Before a pilot" at the end.
 
 ## Repository layout
 
@@ -277,7 +277,12 @@ there (recommended), or keep in-app inbox only. Push stays stubbed until you cho
   without any new test code.
 - **Concurrency**: eight reports of the same pothole processed at the same instant
   produce exactly one ticket with eight reporters (advisory lock in clustering).
-- **Load test** (`scripts/loadtest.py`, results in [`docs/load-test.md`](docs/load-test.md)).
+- **Load test** at 100,000 tickets (`scripts/loadtest.py`, results in
+  [`docs/load-test.md`](docs/load-test.md)). It found four slow spots, all fixed:
+  clustering ignored the spatial index (100 → 6 ms), dashboards looked up breach history
+  ticket by ticket (summaries ~5× faster via an `sla_breached` flag), area scoping
+  couldn't use its index (now `@>`), and leaderboards tested every area against every
+  ticket (572 → 85 ms). Every dashboard query is now under 100 ms at that size.
 
 ## Free services used
 
@@ -307,4 +312,23 @@ boundaries (e.g. from DataMeet) before any pilot.
 2. **Government workflow** ✓ official auth + 2FA, scoped access, ticket lifecycle, SLA escalation, fix proof, reporter confirmation, notifications, CSV export.
 3. **Web dashboards** ✓ public dashboard (figures, map, trends, leaderboards, drill-down, ticket pages) and government dashboard (scoped queue, map, drill-down, ageing, actions, CSV export).
 4. **Citizen mobile app** ✓ OTP sign-in, camera-only reporting with GPS, live verification status, my reports, nearby map with "I see this too", inbox with fix confirmation.
-5. Hardening: rate limits, bans, attestation, access-control tests, load tests.
+5. **Hardening** ✓ rate limits, abuse bans without de-anonymizing, attestation hook, security audit log, route-wide access and anonymity tests, concurrency test, load test with fixes.
+
+## Before a pilot
+
+Stubbed or needing your decision:
+
+- **Push notifications**: decide where device push tokens live (recommended: the
+  identity vault). Until then citizens use the in-app inbox.
+- **Device attestation**: implement Play Integrity / App Attest behind
+  `app/security/attestation.py` (needs Google/Apple credentials), then turn on
+  `REQUIRE_ATTESTATION`.
+- **SMS OTP** (needs a paid SMS gateway) and **Aadhaar/DigiLocker** (needs UIDAI-licensed
+  access). Both are behind interfaces.
+- **Real boundaries and roads**: replace the SAMPLE wards with real LGD codes and ward
+  maps, and import the OSM road network (then turn on `REQUIRE_ROAD_SNAP`).
+- **Gemini key** for real photo checks (`VISION_PROVIDER=gemini`).
+- **Hindi / Bengali** text in the web and mobile apps.
+- **Hosting**: set real secrets (`VAULT_ENCRYPTION_KEY`, `IDENTITY_HASH_PEPPER`,
+  `JWT_SECRET`), `APP_ENV=prod`, `TRUST_PROXY=true` behind a proxy, and keep the vault
+  keys with the platform, not government tenants.

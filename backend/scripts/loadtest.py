@@ -147,7 +147,7 @@ def main() -> None:
 
 def pct(values, p):
     ordered = sorted(values)
-    return ordered[min(len(ordered) - 1, int(round(p / 100 * (len(ordered) - 1))))]
+    return ordered[min(len(ordered) - 1, round(p / 100 * (len(ordered) - 1)))]
 
 
 def explain(db, sql):
@@ -195,14 +195,18 @@ def load_data(n: int) -> None:
             FROM (SELECT g, now() - random() * interval '180 days' AS c FROM generate_series(1, :n) g) s"""),
             {"n": n})
         c.execute(text("""
-            UPDATE tickets t SET jurisdiction_path = j.path,
-                   escalated_node_id = j.id,
-                   owner_node_id = j.id,
+            WITH m AS (
+                SELECT t.id AS tid, j.id AS jid, j.path
+                FROM tickets t
+                CROSS JOIN LATERAL (SELECT id, path FROM jurisdictions
+                                    WHERE geom IS NOT NULL AND ST_Covers(geom, t.location)
+                                    ORDER BY cardinality(path) DESC LIMIT 1) j
+            )
+            UPDATE tickets t SET jurisdiction_path = m.path, escalated_node_id = m.jid,
+                   owner_node_id = m.jid,
                    authority_id = (SELECT a.id FROM authorities a WHERE a.type = 'municipal'
-                                   AND a.jurisdiction_id = ANY(j.path) LIMIT 1)
-            FROM LATERAL (SELECT id, path FROM jurisdictions
-                          WHERE geom IS NOT NULL AND ST_Covers(geom, t.location)
-                          ORDER BY cardinality(path) DESC LIMIT 1) j"""))
+                                   AND a.jurisdiction_id = ANY(m.path) LIMIT 1)
+            FROM m WHERE m.tid = t.id"""))
         c.execute(text("""
             INSERT INTO reports (id, ticket_id, reporter_id, category_id, photo_original_key,
                                  photo_public_key, phash, location, gps_accuracy_m, captured_at,
@@ -222,6 +226,7 @@ def load_data(n: int) -> None:
             INSERT INTO ticket_events (ticket_id, type, actor_type, payload, created_at)
             SELECT id, 'escalated', 'system', '{"reason": "SLA breached (load test)", "public": true}'::jsonb,
                    sla_due_at FROM tickets WHERE abs(hashtext(public_ref)) % 10 = 0"""))
+        c.execute(text("UPDATE tickets SET sla_breached = true WHERE abs(hashtext(public_ref)) % 10 = 0"))
     with core_engine().connect().execution_options(isolation_level="AUTOCOMMIT") as c:
         c.execute(text("VACUUM ANALYZE"))
     print(f"Loaded in {time.perf_counter() - t0:.1f} s\n")
