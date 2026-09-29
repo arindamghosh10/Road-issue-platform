@@ -22,10 +22,11 @@ from app.db import core_session
 from app.imaging.sanitize import InvalidImage, sanitize
 from app.models.core import Category, Report, ReportStatus
 from app.notifications.service import notify_officials, notify_reporter, officials_for_node
+from app.security.attestation import get_attestation_verifier
 from app.storage import get_store
 from app.tickets.clustering import attach_to_ticket
 from app.tickets.routing import locate
-from app.verification.checks import ReportContext, StubAttestationVerifier
+from app.verification.checks import ReportContext
 from app.verification.pipeline import run_pipeline
 from app.vision import get_vision_verifier
 
@@ -134,7 +135,7 @@ def process_report(report_id: uuid.UUID) -> None:
             placement=placement,
             vision=vision_result,
         )
-        verdict = run_pipeline(ctx, db, StubAttestationVerifier())
+        verdict = run_pipeline(ctx, db, get_attestation_verifier())
         report.verification_score = verdict.score
         details = verdict.details() | {
             "sanitization": {"faces_blurred": clean.faces_blurred,

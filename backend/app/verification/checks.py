@@ -13,12 +13,12 @@ Corroboration (several independent reporters) is applied at ticket level in clus
 
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Protocol
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.security.attestation import AttestationVerifier
 from app.tickets.routing import Placement, nearest_road
 from app.vision.base import VisionResult
 
@@ -54,21 +54,6 @@ class ReportContext:
     exif_captured_at: datetime | None
     placement: Placement | None
     vision: VisionResult
-
-
-# --- Device attestation (stub) ------------------------------------------------------
-
-
-class AttestationVerifier(Protocol):
-    def verify(self, token: str | None) -> bool | None:
-        """True = genuine app on genuine device, False = forged, None = not checked."""
-
-
-class StubAttestationVerifier:
-    """Play Integrity (Android) / App Attest (iOS) arrive with the mobile app (Phase 4)."""
-
-    def verify(self, token: str | None) -> bool | None:
-        return None
 
 
 # --- Checks -----------------------------------------------------------------------------

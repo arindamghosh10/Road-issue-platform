@@ -53,6 +53,12 @@ class Settings(BaseSettings):
     otp_max_attempts: int = 5
     otp_max_requests_per_hour: int = 5
 
+    # --- Abuse protection (Phase 5) -------------------------------------------------
+    rate_limit_backend: str = "redis"  # "redis" | "memory" (tests) | "off"
+    trust_proxy: bool = False  # true only behind a reverse proxy that sets X-Forwarded-For
+    # Play Integrity (Android) / App Attest (iOS) verifier: "stub" returns "not checked".
+    attestation_provider: str = "stub"
+
     # --- Background jobs ----------------------------------------------------------
     # True: verification runs inside the upload request (tests, simple demos).
     # False: queued to the Celery worker via Redis.

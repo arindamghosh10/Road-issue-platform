@@ -64,6 +64,7 @@ Demo officials (password `roadwatch-demo`, dev only), all `@demo.roadwatch.in`:
 | `hmc@` | Howrah Municipal Corporation |
 | `nhai@`, `pwd@` | whole state (node) + roads their authority owns |
 | `admin@` | tenant admin, whole state |
+| `platform@` | RoadWatch operator (not government): moderation + audit log only |
 
 ### Try the citizen flow (what the mobile app will do)
 
@@ -241,6 +242,42 @@ needs that phone's push token stored against their reporter id. The token identi
 device, so storing it in the ticket database would weaken "a dump of core-db identifies
 nobody". Options: keep tokens in the identity vault and let only the notifier read them
 there (recommended), or keep in-app inbox only. Push stays stubbed until you choose.
+
+## Hardening (Phase 5)
+
+- **Rate limits** (`app/security/ratelimit.py`, Redis-backed, shared by all API
+  processes): official logins per IP and per account, OTP requests and code guesses per
+  IP (plus the existing per-phone limit), reports, "I see this too", fix answers, CSV
+  exports and repair photos. Over the limit → HTTP 429 with `Retry-After`, and an audit
+  entry. Keys are hashed; if Redis is down the limiter fails open rather than taking the
+  service down.
+- **Abuse bans without de-anonymizing** (`/api/v1/admin`, platform operator only): the
+  admin works from a *report* and sees only the sender's anonymous track record
+  ("14 reports, 11 rejected"). "Ban sender" marks the identity banned inside the vault,
+  so the same phone number can't sign back in, kills their existing tokens, and
+  optionally withdraws their reports and recounts the affected tickets. Nobody, the
+  admin included, sees a phone number or reporter id. Bans can be lifted.
+- **Device attestation hook** (`app/security/attestation.py`): the interface and
+  configuration for Play Integrity / App Attest. A forged token rejects the report;
+  `REQUIRE_ATTESTATION=true` rejects uploads that weren't checked. The provider itself
+  isn't implemented yet (it needs Google/Apple credentials); the file explains the steps.
+- **Security audit log** (`audit_log` table, `GET /api/v1/admin/audit`): official
+  logins (success and failure), 2FA enabled, CSV exports, bans, rate-limit hits, citizen
+  sign-ins. IPs are stored only as keyed hashes and **never** for citizen actions; in
+  the admin view citizen ids are replaced by pseudonyms.
+- **Route-wide tests** (`tests/test_phase5_hardening.py`) read the app's own OpenAPI
+  route list, so every future endpoint is covered automatically:
+  - every government, admin and citizen route refuses callers who aren't signed in, and
+    citizen tokens can't use government or admin routes;
+  - every GET endpoint of the government, public and admin APIs is called with real data
+    present, and the raw responses are scanned for reporter ids, phone digits and
+    identity field names.
+
+  To prove this works, a deliberately leaky endpoint was added: the test flagged it
+  without any new test code.
+- **Concurrency**: eight reports of the same pothole processed at the same instant
+  produce exactly one ticket with eight reporters (advisory lock in clustering).
+- **Load test** (`scripts/loadtest.py`, results in [`docs/load-test.md`](docs/load-test.md)).
 
 ## Free services used
 

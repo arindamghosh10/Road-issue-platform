@@ -127,3 +127,30 @@ def verify_otp(challenge_id: uuid.UUID, code: str) -> str:
     if banned:
         raise AuthError("This account is suspended.", 403)
     return reporter_id
+
+
+def set_reporter_ban(reporter_id: str, banned: bool) -> bool:
+    """Ban (or lift the ban on) the person behind an opaque reporter id.
+
+    The ban is applied in BOTH stores:
+    * vault — the identity is marked banned, so the same phone number (and, later, the
+      same Aadhaar hash) cannot sign in again or register a fresh account;
+    * core  — the reporter id is marked banned, so existing tokens stop working at once.
+    Nobody — not the admin who triggers it, not the government — learns who the person
+    is. Returns False if the reporter id is unknown.
+    """
+    now = datetime.now(UTC)
+    with vault_session() as vault:
+        link = vault.scalar(select(ReporterLink).where(ReporterLink.reporter_id == reporter_id))
+        if link is not None:
+            identity = vault.get(IdentityRecord, link.identity_id, with_for_update=True)
+            identity.banned = banned
+            identity.banned_at = now if banned else None
+            vault.commit()
+    with core_session() as core:
+        reporter = core.get(Reporter, reporter_id, with_for_update=True)
+        if reporter is None:
+            return False
+        reporter.banned = banned
+        core.commit()
+    return True

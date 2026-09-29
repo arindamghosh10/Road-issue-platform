@@ -413,6 +413,28 @@ class TicketSighting(CoreBase):
     created_at: Mapped[datetime] = _created_at()
 
 
+class AuditLog(CoreBase):
+    """Security audit trail: logins, 2FA changes, exports, bans, rate-limit hits.
+
+    Separate from ticket_events (which is the ticket's own history). Only platform
+    admins can read it. `ip_hash` is a keyed hash, and is NEVER stored for citizen
+    actions, so the log cannot link a citizen's reports to a network address.
+    """
+
+    __tablename__ = "audit_log"
+    __table_args__ = (Index("ix_audit_log_action_created", "action", "created_at"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    created_at: Mapped[datetime] = _created_at()
+    actor_type: Mapped[str] = mapped_column(String(16), nullable=False)  # official|citizen|platform|anonymous|system
+    actor_id: Mapped[str | None] = mapped_column(String(64))
+    action: Mapped[str] = mapped_column(String(48), nullable=False)
+    target: Mapped[str | None] = mapped_column(String(128))
+    success: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    ip_hash: Mapped[str | None] = mapped_column(String(32))
+    details: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+
+
 class FixConfirmation(CoreBase):
     """A reporter's answer to "Is this fixed?". Gov only ever sees aggregate counts."""
 

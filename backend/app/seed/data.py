@@ -60,3 +60,7 @@ DEMO_OFFICIALS: list[dict] = [
     {"name": "Tenant Admin (demo)", "email": "admin@demo.roadwatch.in",
      "role": "gov_admin", "node": "SAMPLE-ST-WB"},
 ]
+
+# The platform operator (us), not a government user: moderation and audit only.
+PLATFORM_ADMIN = {"name": "RoadWatch Platform Admin (demo)", "email": "platform@demo.roadwatch.in",
+                  "role": "platform_admin"}

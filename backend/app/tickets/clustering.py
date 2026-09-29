@@ -134,19 +134,8 @@ def attach_to_ticket(
     report.ticket_id = ticket.id
     db.flush()
 
-    # Recount from the reports themselves so the numbers can never drift.
-    counts = db.execute(
-        select(func.count(), func.count(func.distinct(Report.reporter_id))).where(
-            Report.ticket_id == ticket.id,
-            Report.status == ReportStatus.VERIFIED.value,
-        )
-    ).one()
-    ticket.report_count, ticket.unique_reporters = int(counts[0]), int(counts[1])
     ticket.severity = max(ticket.severity, severity)
-    age_days = 0.0 if created else (now - ticket.created_at).total_seconds() / 86400
-    ticket.priority = compute_priority(
-        ticket.severity, ticket.unique_reporters, placement.road_class, age_days, ticket.seen_count or 0
-    )
+    recount_ticket(db, ticket, placement.road_class, now)
     db.add(TicketEvent(
         ticket_id=ticket.id, type="report_attached",
         # actor_id is the opaque reporter id: kept for the internal audit trail only and
@@ -155,6 +144,24 @@ def attach_to_ticket(
         payload={"report_count": ticket.report_count, "unique_reporters": ticket.unique_reporters},
     ))
     return ticket, created
+
+
+def recount_ticket(db: Session, ticket: Ticket, road_class: str | None, now: datetime | None = None) -> None:
+    """Recount reports/reporters from the verified reports themselves (so the numbers can
+    never drift) and refresh priority. Used when reports are added or withdrawn."""
+    now = now or datetime.now(UTC)
+    counts = db.execute(
+        select(func.count(), func.count(func.distinct(Report.reporter_id))).where(
+            Report.ticket_id == ticket.id,
+            Report.status == ReportStatus.VERIFIED.value,
+        )
+    ).one()
+    ticket.report_count, ticket.unique_reporters = int(counts[0]), int(counts[1])
+    created = ticket.created_at or now
+    age_days = max(0.0, (now - created).total_seconds() / 86400)
+    ticket.priority = compute_priority(
+        ticket.severity, ticket.unique_reporters, road_class, age_days, ticket.seen_count or 0
+    )
 
 
 def distance_m(lon1: float, lat1: float, lon2: float, lat2: float) -> float:

@@ -193,6 +193,14 @@ def seed_tenant(
     return tenant
 
 
+def ensure_platform_admin(db: Session) -> None:
+    """Idempotent: also adds the platform admin to databases seeded before Phase 5."""
+    spec = data.PLATFORM_ADMIN
+    if db.scalar(select(Official.id).where(Official.email == spec["email"])) is None:
+        db.add(Official(tenant_id=None, name=spec["name"], email=spec["email"],
+                        password_hash=hash_password(data.DEMO_PASSWORD), role=spec["role"]))
+
+
 def run(reset: bool = False) -> None:
     with core_session() as db:
         if reset:
@@ -200,6 +208,8 @@ def run(reset: bool = False) -> None:
                 sys.exit("Refusing to --reset in prod.")
             db.execute(text(f"TRUNCATE {', '.join(CORE_TABLES)} RESTART IDENTITY CASCADE"))
         elif db.scalar(select(Jurisdiction.id).limit(1)) is not None:
+            ensure_platform_admin(db)
+            db.commit()
             print("Core DB already seeded; use --reset to wipe and re-seed.")
             return
 
@@ -208,6 +218,7 @@ def run(reset: bool = False) -> None:
         seed_roads(db, authorities)
         categories = seed_categories(db)
         seed_tenant(db, nodes, authorities, categories)
+        ensure_platform_admin(db)
         db.commit()
 
     print(f"Seeded {len(nodes)} jurisdictions (SAMPLE data), {len(authorities)} authorities, "

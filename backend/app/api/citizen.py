@@ -7,12 +7,23 @@ identity details — those stay in the vault.
 import uuid
 from datetime import UTC, date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from app import audit
 from app.api.deps import current_reporter_id
 from app.api.gov import NotificationOut, notification_rows
 from app.api.views import PublicTicket, build_tickets
@@ -34,6 +45,7 @@ from app.models.core import (
     TicketStatus,
 )
 from app.reports.service import NewReport, ReportError, create_report, enqueue_processing
+from app.security.ratelimit import client_ip, enforce
 from app.security.tokens import issue_citizen_token
 from app.storage import public_url
 from app.tickets.priority import compute_priority
@@ -80,7 +92,9 @@ class MyReport(BaseModel):
 
 
 @router.post("/auth/otp/request", response_model=OtpRequested)
-def otp_request(body: OtpRequest) -> OtpRequested:
+def otp_request(body: OtpRequest, request: Request) -> OtpRequested:
+    # Per-IP limit here; the identity service also limits codes per phone number.
+    enforce("otp_request_ip", client_ip(request), ip=client_ip(request))
     try:
         return OtpRequested(challenge_id=request_otp(body.phone))
     except AuthError as exc:
@@ -88,11 +102,14 @@ def otp_request(body: OtpRequest) -> OtpRequested:
 
 
 @router.post("/auth/otp/verify", response_model=TokenOut)
-def otp_verify(body: OtpVerify) -> TokenOut:
+def otp_verify(body: OtpVerify, request: Request) -> TokenOut:
+    enforce("otp_verify_ip", client_ip(request), ip=client_ip(request))
     try:
         reporter_id = verify_otp(body.challenge_id, body.code)
     except AuthError as exc:
         raise HTTPException(exc.status_code, exc.message) from None
+    # Citizen audit records carry the opaque id only — never IP or phone.
+    audit.record("citizen_login", actor_type="citizen", actor_id=reporter_id)
     return TokenOut(access_token=issue_citizen_token(reporter_id))
 
 
@@ -125,6 +142,8 @@ def submit_report(
     db: Session = Depends(get_core_db),
 ) -> MyReport:
     """Submit a photo report. Verification runs in the background; poll GET /reports/{id}."""
+    for rule in ("report_hour", "report_day"):
+        enforce(rule, reporter_id, actor_type="citizen", actor_id=reporter_id)
     if capture_source != "in_app_camera":
         raise HTTPException(422, "Only photos taken with the in-app camera are accepted.")
     if (photo.content_type or "") not in ALLOWED_PHOTO_TYPES:
@@ -215,6 +234,7 @@ def confirm_fix(
     db: Session = Depends(get_core_db),
 ) -> ConfirmOut:
     """Answer "Is this fixed?" for a ticket I reported. The government only sees totals."""
+    enforce("confirm_hour", reporter_id, actor_type="citizen", actor_id=reporter_id)
     ticket = db.scalar(select(Ticket).where(Ticket.public_ref == ref).with_for_update())
     if ticket is None:
         raise HTTPException(404, "Ticket not found.")
@@ -286,6 +306,7 @@ def i_see_this_too(
 ) -> SightingOut:
     """ "I see this too": confirm an existing issue while standing near it (no photo).
     One per citizen per ticket; counts publicly as a sighting, not a verified report."""
+    enforce("sighting_hour", reporter_id, actor_type="citizen", actor_id=reporter_id)
     ticket = db.scalar(select(Ticket).where(Ticket.public_ref == ref).with_for_update())
     if ticket is None:
         raise HTTPException(404, "Ticket not found.")

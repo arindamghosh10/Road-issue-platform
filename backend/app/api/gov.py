@@ -14,12 +14,13 @@ import io
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
+from app import audit
 from app.api import stats
 from app.api.deps import current_official
 from app.api.public import ticket_filters
@@ -39,6 +40,7 @@ from app.models.core import (
 from app.notifications.service import notify_officials
 from app.security import totp
 from app.security.passwords import verify_password
+from app.security.ratelimit import client_ip, enforce
 from app.security.tokens import issue_official_token
 from app.tickets.lifecycle import TransitionError, add_event, assignable_officials, change_status
 from app.tickets.resolution import FixProofError, submit_fix_proof, tally
@@ -73,13 +75,26 @@ class MeOut(BaseModel):
 
 
 @router.post("/auth/login", response_model=TokenOut)
-def login(body: LoginIn, db: Session = Depends(get_core_db)) -> TokenOut:
-    official = db.scalar(select(Official).where(Official.email == body.email.strip().lower()))
+def login(body: LoginIn, request: Request, db: Session = Depends(get_core_db)) -> TokenOut:
+    ip = client_ip(request)
+    email = body.email.strip().lower()
+    # Two limits: per IP (one machine trying many accounts) and per account (many
+    # machines guessing one password).
+    enforce("gov_login_ip", ip, ip=ip)
+    enforce("gov_login_email", email, ip=ip)
+    official = db.scalar(select(Official).where(Official.email == email))
     # Same message for unknown email and wrong password: don't reveal which accounts exist.
     if official is None or not official.is_active or not verify_password(body.password, official.password_hash):
+        audit.record("official_login", actor_type="official",
+                     actor_id=str(official.id) if official else None, target=email[:128],
+                     success=False, ip=ip, details={"reason": "bad_credentials"})
         raise HTTPException(401, "Wrong email or password.")
     if official.totp_enabled and not totp.verify(official.totp_secret, body.totp_code):
+        audit.record("official_login", actor_type="official", actor_id=str(official.id),
+                     success=False, ip=ip, details={"reason": "bad_2fa"})
         raise HTTPException(401, "Two-factor code required or incorrect.")
+    audit.record("official_login", actor_type="official", actor_id=str(official.id), ip=ip,
+                 details={"2fa": official.totp_enabled})
     return TokenOut(access_token=issue_official_token(str(official.id)))
 
 
@@ -118,6 +133,7 @@ def totp_enable(body: TotpEnableIn, official: Official = Depends(current_officia
         raise HTTPException(400, "Code incorrect. Run setup, scan the QR code, then try again.")
     official.totp_enabled = True
     db.commit()
+    audit.record("official_2fa_enabled", actor_type="official", actor_id=str(official.id))
     return {"totp_enabled": True}
 
 
@@ -176,8 +192,12 @@ def export_csv(
     official: Official = Depends(current_official),
     db: Session = Depends(get_core_db),
 ) -> StreamingResponse:
+    enforce("gov_export_hour", str(official.id), actor_type="official", actor_id=str(official.id))
     query = _queue_query(db, official, status, category, jurisdiction_id, None, open_only=False)
     tickets = build_tickets(db, list(db.scalars(query.limit(50_000))), gov=True)
+    audit.record("csv_export", actor_type="official", actor_id=str(official.id),
+                 details={"rows": len(tickets), "status": status.value if status else None,
+                          "category": category, "jurisdiction_id": jurisdiction_id})
     buf = io.StringIO()
     writer = csv.writer(buf)
     columns = ["ref", "category", "status", "severity", "priority", "verified_reporters",
@@ -300,6 +320,7 @@ def fix_proof(
     """Upload an after-repair photo taken at the site. Accepted → fix_submitted and the
     original reporters are asked to confirm. Refused → 422 with the reason."""
     _require_actor(official)
+    enforce("gov_fix_proof_hour", str(official.id), actor_type="official", actor_id=str(official.id))
     ticket = _scoped(db, official, ref)
     if captured_at.tzinfo is None:
         raise HTTPException(422, "captured_at must include a timezone (ISO 8601).")
