@@ -35,8 +35,11 @@ def include_object(obj, name, type_, reflected, compare_to):
 
 def run_migrations_online() -> None:
     engine = create_engine(get_settings().core_database_url)
+    # On its own connection: running it on the migration connection would open a
+    # transaction that alembic then never commits.
+    with engine.connect() as probe:
+        extension_tables.update(probe.execute(EXTENSION_TABLES_SQL).scalars())
     with engine.connect() as connection:
-        extension_tables.update(connection.execute(EXTENSION_TABLES_SQL).scalars())
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
