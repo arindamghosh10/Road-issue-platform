@@ -362,7 +362,7 @@ carries a version that the change bumps).
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on every pull request and every push to `main`:
+`.github/workflows/ci.yml` runs on every push (any branch) and every pull request:
 
 - **backend**: ruff, the full pytest suite against PostGIS and a *separate* vault
   Postgres (as in production), and `alembic check` for both databases;

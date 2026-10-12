@@ -1,4 +1,4 @@
-# Runs on every pull request and every push to main.
+# Runs on every push (any branch) and every pull request.
 #   backend  — lint, migrations match the models, full pytest suite (both databases)
 #   web      — typecheck, translation tests, production build
 #   mobile   — typecheck, unit tests + no-gallery check, Android bundle
@@ -9,9 +9,8 @@
 name: CI
 
 on:
-  pull_request:
   push:
-    branches: [main]
+  pull_request:
 
 concurrency:
   group: ci-${{ github.ref }}
