@@ -96,7 +96,7 @@ def _exif_datetime(img: Image.Image) -> datetime | None:
     try:
         raw = img.getexif().get_ifd(EXIF_IFD).get(EXIF_DATETIME_ORIGINAL)
         # EXIF stores local time with no timezone; the capture check allows for that.
-        return datetime.strptime(raw, "%Y:%m:%d %H:%M:%S") if raw else None  # noqa: DTZ007
+        return datetime.strptime(raw, "%Y:%m:%d %H:%M:%S") if raw else None
     except (ValueError, TypeError, AttributeError):
         return None
 

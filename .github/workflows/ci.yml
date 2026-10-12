@@ -32,12 +32,12 @@ jobs:
         image: postgis/postgis:16-3.4
         env: { POSTGRES_DB: roadwatch_core_test, POSTGRES_USER: roadwatch_core, POSTGRES_PASSWORD: core_dev_pw }
         ports: ["5432:5432"]
-        options: --health-cmd "pg_isready -U roadwatch_core" --health-interval 5s --health-retries 20
+        options: --health-cmd "pg_isready -U roadwatch_core -d postgres" --health-interval 5s --health-retries 20
       vault-db:
         image: postgres:16
         env: { POSTGRES_DB: roadwatch_vault_test, POSTGRES_USER: roadwatch_vault, POSTGRES_PASSWORD: vault_dev_pw }
         ports: ["5433:5432"]
-        options: --health-cmd "pg_isready -U roadwatch_vault" --health-interval 5s --health-retries 20
+        options: --health-cmd "pg_isready -U roadwatch_vault -d postgres" --health-interval 5s --health-retries 20
     defaults: { run: { working-directory: backend } }
     steps:
       - uses: actions/checkout@v4
@@ -94,12 +94,12 @@ jobs:
         image: postgis/postgis:16-3.4
         env: { POSTGRES_DB: roadwatch_core, POSTGRES_USER: roadwatch_core, POSTGRES_PASSWORD: core_dev_pw }
         ports: ["5432:5432"]
-        options: --health-cmd "pg_isready -U roadwatch_core" --health-interval 5s --health-retries 20
+        options: --health-cmd "pg_isready -U roadwatch_core -d postgres" --health-interval 5s --health-retries 20
       vault-db:
         image: postgres:16
         env: { POSTGRES_DB: roadwatch_vault, POSTGRES_USER: roadwatch_vault, POSTGRES_PASSWORD: vault_dev_pw }
         ports: ["5433:5432"]
-        options: --health-cmd "pg_isready -U roadwatch_vault" --health-interval 5s --health-retries 20
+        options: --health-cmd "pg_isready -U roadwatch_vault -d postgres" --health-interval 5s --health-retries 20
     env:
       CORE_DATABASE_URL: postgresql+psycopg://roadwatch_core:core_dev_pw@localhost:5432/roadwatch_core
       VAULT_DATABASE_URL: postgresql+psycopg://roadwatch_vault:vault_dev_pw@localhost:5433/roadwatch_vault

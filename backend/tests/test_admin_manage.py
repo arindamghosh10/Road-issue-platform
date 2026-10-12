@@ -5,7 +5,6 @@ import io
 import json
 import uuid
 
-
 import pytest
 from sqlalchemy import select, text
 
