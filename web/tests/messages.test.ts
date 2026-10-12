@@ -16,7 +16,8 @@ for (const [name, dict] of [["hi", hi], ["bn", bn]] as const) {
       assert.ok(tr.trim(), `${name} ${key} is empty`);
       assert.deepEqual(placeholders(tr), placeholders(text), `${name} ${key} placeholders`);
       if (text.split(" ").length > 2 && !text.includes("RoadWatch")) assert.notEqual(tr, text, `${name} ${key} untranslated`);
-      if (name === "bn") assert.doesNotMatch(tr, /[0-9]/, `bn ${key} should use Bengali digits`);
+      // Codes such as WGS84 keep their Latin digits; numbers on their own must be Bengali.
+      if (name === "bn") assert.doesNotMatch(tr, /(?<![A-Za-z0-9])[0-9]/, `bn ${key} should use Bengali digits`);
     }
   });
 }

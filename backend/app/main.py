@@ -4,7 +4,8 @@ Routers:
 * /api/v1/citizen — OTP sign-in, report submission, "my reports" (Phase 1)
 * /api/v1/public  — categories, jurisdictions, tickets; no login, no identity data
 * /api/v1/gov     — official login, scoped work queue, ticket actions, fix proofs (Phase 2)
-* /api/v1/admin   — platform operator: moderation (ban by report, no identity), audit log
+* /api/v1/admin   — administration: officials, deadlines, areas, organisations (platform
+                   and organisation admins); moderation (ban by report, no identity), audit log
 """
 
 from pathlib import Path
@@ -14,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
-from app.api import admin, citizen, gov, public
+from app.api import admin, admin_manage, citizen, gov, public
 from app.config import get_settings
 from app.db import core_engine, vault_engine
 
@@ -29,6 +30,7 @@ app.include_router(citizen.router)
 app.include_router(public.router)
 app.include_router(gov.router)
 app.include_router(admin.router)
+app.include_router(admin_manage.router)
 
 _settings = get_settings()
 if _settings.storage_backend == "local":

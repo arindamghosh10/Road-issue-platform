@@ -114,6 +114,37 @@ export interface Me {
   node_level: string | null;
   authority_id: number | null;
   totp_enabled: boolean;
+  must_change_password: boolean;
+  tenant_id: string | null;
+  tenant: string | null;
+}
+
+// --- Administration ---------------------------------------------------------------
+
+export type Role = "official" | "gov_admin" | "platform_admin";
+export const isAdmin = (me: Me | null) => me?.role === "gov_admin" || me?.role === "platform_admin";
+
+export interface TenantRow { id: string; name: string; root_node_id: number; root_node: string; root_level: string; officials: number }
+export interface DeadlineRow { category: string; name: string; severity: number; default_hours: number; hours: number | null }
+export interface AdminArea {
+  id: number; name: string; level: string; lgd_code: string; parent_id: number | null;
+  is_sample: boolean; has_boundary: boolean; children: number; tenant: string | null;
+}
+export interface AuthorityRow2 { id: number; name: string; type: string; jurisdiction_id: number | null; area: string | null }
+export interface OfficialRow {
+  id: string; name: string; email: string; role: Role; tenant_id: string | null; tenant: string | null;
+  node_id: number | null; node: string | null; node_level: string | null;
+  authority_id: number | null; authority: string | null;
+  is_active: boolean; totp_enabled: boolean; must_change_password: boolean; created_on: string;
+}
+export interface ModerationRow {
+  report_id: string; ticket_ref: string | null; category: string; status: "under_verification" | "verified" | "rejected";
+  verification_score: number | null; rejection_reason: string | null; received_on: string;
+  sender: { reports: number; verified: number; rejected: number; banned: boolean };
+}
+export interface AuditRow {
+  id: number; created_at: string; actor_type: string; actor_id: string | null; action: string;
+  target: string | null; success: boolean; details: Record<string, unknown>;
 }
 
 export interface GovTicketDetail {

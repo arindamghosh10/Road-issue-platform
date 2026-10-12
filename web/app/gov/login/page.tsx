@@ -2,8 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { API_URL, setToken } from "@/lib/api";
+import { API_URL, govGet, setToken } from "@/lib/api";
 import { useI18n } from "@/lib/locale";
+import type { Me } from "@/lib/types";
+import { homeFor } from "@/lib/useOfficial";
 
 export default function GovLogin() {
   const router = useRouter();
@@ -27,7 +29,7 @@ export default function GovLogin() {
       const body = await res.json();
       if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : t("gov.login.failed"));
       setToken(body.access_token);
-      router.replace("/gov");
+      router.replace(homeFor(await govGet<Me>("/me")));
     } catch (err) {
       setError((err as Error).message);
     } finally {

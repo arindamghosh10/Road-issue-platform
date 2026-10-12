@@ -27,13 +27,16 @@ def issue_citizen_token(reporter_id: str) -> str:
     return jwt.encode(claims, s.effective_jwt_secret, algorithm=ALGORITHM)
 
 
-def issue_official_token(official_id: str) -> str:
+def issue_official_token(official_id: str, version: int = 0) -> str:
+    """`version` is the official's token_version; a password change or reset bumps it,
+    which makes every earlier token invalid."""
     s = get_settings()
     now = datetime.now(UTC)
     claims = {
         "jti": secrets.token_hex(8),
         "sub": official_id,
         "role": "official",
+        "ver": version,
         "iat": now,
         "exp": now + timedelta(hours=s.official_token_ttl_hours),
     }

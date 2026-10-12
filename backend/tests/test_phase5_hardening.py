@@ -143,9 +143,10 @@ def _routes(prefix: str) -> list[tuple[str, str]]:
 PUBLIC_AUTH = {"/api/v1/gov/auth/login", "/api/v1/citizen/auth/otp/request", "/api/v1/citizen/auth/otp/verify"}
 
 
-def _fill(path: str, ref: str) -> str:
+def _fill(path: str, ref: str, tenant_id: str | None = None) -> str:
     return (path.replace("{ref}", ref).replace("{report_id}", str(uuid.uuid4()))
-            .replace("{notification_id}", "1"))
+            .replace("{notification_id}", "1").replace("{official_id}", str(uuid.uuid4()))
+            .replace("{tenant_id}", tenant_id or str(uuid.uuid4())))
 
 
 def test_every_gov_admin_and_citizen_route_requires_login(client):
@@ -187,12 +188,13 @@ def test_no_get_endpoint_leaks_identity(client):
               "/api/v1/public": {}}
     forbidden_keys = {"reporter_id", "phone", "phone_encrypted", "identity_hash", "identity_id",
                       "photo_original_key", "attestation_token", "ip_hash"}
+    tenant_id = client.get("/api/v1/admin/tenants", headers=tokens["/api/v1/admin"]).json()[0]["id"]
     scanned = 0
     for prefix, headers in tokens.items():
         for method, path in _routes(prefix):
             if method != "GET":
                 continue
-            r = client.get(_fill(path, ref), headers=headers)
+            r = client.get(_fill(path, ref, tenant_id), headers=headers)
             assert r.status_code == 200, f"GET {path}: {r.status_code} {r.text[:200]}"
             assert not REPORTER_ID_RE.search(r.text), path
             assert not any(rid in r.text for rid in reporter_ids), path

@@ -39,6 +39,8 @@ RULES = {
     "sighting_hour": Rule("sighting_hour", 30, 3600),           # "I see this too" per citizen per hour
     "confirm_hour": Rule("confirm_hour", 30, 3600),             # fix answers per citizen per hour
     "push_token_hour": Rule("push_token_hour", 20, 3600),       # device (un)registrations per citizen
+    "gov_password_hour": Rule("gov_password_hour", 10, 3600),   # password changes per official per hour
+    "admin_write_hour": Rule("admin_write_hour", 300, 3600),    # admin changes per admin per hour
     "gov_export_hour": Rule("gov_export_hour", 20, 3600),       # CSV exports per official per hour
     "gov_fix_proof_hour": Rule("gov_fix_proof_hour", 60, 3600), # repair photos per official per hour
 }

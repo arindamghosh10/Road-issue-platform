@@ -237,6 +237,12 @@ class Official(CoreBase):
     # Two-factor login (TOTP: the 6-digit codes from Google Authenticator & similar apps).
     totp_secret: Mapped[str | None] = mapped_column(String(64))
     totp_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    # Set when an admin creates the account or resets the password: the official must
+    # choose their own password before doing anything else.
+    must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    # Part of every login token; bumping it (password change or reset) signs out all
+    # existing sessions.
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     created_at: Mapped[datetime] = _created_at()
 
 

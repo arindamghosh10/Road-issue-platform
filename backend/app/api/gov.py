@@ -34,12 +34,13 @@ from app.models.core import (
     Official,
     OfficialRole,
     RecipientType,
+    Tenant,
     Ticket,
     TicketStatus,
 )
 from app.notifications.service import notify_officials
 from app.security import totp
-from app.security.passwords import verify_password
+from app.security.passwords import check_new_password, hash_password, verify_password
 from app.security.ratelimit import client_ip, enforce
 from app.security.tokens import issue_official_token
 from app.tickets.lifecycle import TransitionError, add_event, assignable_officials, change_status
@@ -72,6 +73,9 @@ class MeOut(BaseModel):
     node_level: str | None
     authority_id: int | None
     totp_enabled: bool
+    must_change_password: bool = False
+    tenant_id: uuid.UUID | None = None
+    tenant: str | None = None
 
 
 @router.post("/auth/login", response_model=TokenOut)
@@ -95,15 +99,45 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_core_db)) -
         raise HTTPException(401, "Two-factor code required or incorrect.")
     audit.record("official_login", actor_type="official", actor_id=str(official.id), ip=ip,
                  details={"2fa": official.totp_enabled})
-    return TokenOut(access_token=issue_official_token(str(official.id)))
+    return TokenOut(access_token=issue_official_token(str(official.id), official.token_version))
 
 
 @router.get("/me", response_model=MeOut)
 def me(official: Official = Depends(current_official), db: Session = Depends(get_core_db)) -> MeOut:
     node = db.get(Jurisdiction, official.node_id) if official.node_id else None
+    tenant = db.get(Tenant, official.tenant_id) if official.tenant_id else None
     return MeOut(id=official.id, name=official.name, email=official.email, role=official.role,
                  node_id=official.node_id, node=node.name if node else None, node_level=node.level if node else None,
-                 authority_id=official.authority_id, totp_enabled=official.totp_enabled)
+                 authority_id=official.authority_id, totp_enabled=official.totp_enabled,
+                 must_change_password=official.must_change_password,
+                 tenant_id=official.tenant_id, tenant=tenant.name if tenant else None)
+
+
+class PasswordIn(BaseModel):
+    current_password: str = Field(max_length=200)
+    new_password: str = Field(max_length=200)
+
+
+@router.post("/auth/password", response_model=TokenOut)
+def change_password(body: PasswordIn, request: Request, official: Official = Depends(current_official),
+                    db: Session = Depends(get_core_db)) -> TokenOut:
+    """Choose a new password (required after an admin sets a temporary one). Signs out
+    every other session and returns a fresh token for this one."""
+    ip = client_ip(request)
+    enforce("gov_password_hour", str(official.id), actor_type="official", actor_id=str(official.id), ip=ip)
+    if not verify_password(body.current_password, official.password_hash):
+        audit.record("password_change", actor_type="official", actor_id=str(official.id), success=False,
+                     ip=ip, details={"reason": "bad_current_password"})
+        raise HTTPException(401, "Current password is wrong.")
+    problem = check_new_password(body.new_password, official.email, body.current_password)
+    if problem:
+        raise HTTPException(422, problem)
+    official.password_hash = hash_password(body.new_password)
+    official.must_change_password = False
+    official.token_version += 1
+    db.commit()
+    audit.record("password_change", actor_type="official", actor_id=str(official.id), ip=ip)
+    return TokenOut(access_token=issue_official_token(str(official.id), official.token_version))
 
 
 class TotpSetupOut(BaseModel):

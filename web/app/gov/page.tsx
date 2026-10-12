@@ -16,6 +16,7 @@ import { useI18n } from "@/lib/locale";
 import type {
   AgeingBucket, AreaRow, Category, CategoryRow, Filters, GovTicket, NotificationItem, Summary, TrendPoint,
 } from "@/lib/types";
+import { isAdmin } from "@/lib/types";
 import { useData } from "@/lib/useData";
 import { useOfficial } from "@/lib/useOfficial";
 
@@ -87,6 +88,7 @@ export default function GovDashboard() {
           <button className="btn" type="button" onClick={() => downloadCsv(filters).catch(() => setExportError(t("gov.exportFailed")))}>
             {t("gov.export")}
           </button>
+          {isAdmin(me) && <Link className="btn" href="/admin">{t("adm.title")}</Link>}
           <button className="btn" type="button" onClick={logout}>{t("nav.logout")}</button>
         </div>
       </div>

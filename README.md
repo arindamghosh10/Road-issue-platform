@@ -63,8 +63,8 @@ Demo officials (password `roadwatch-demo`, dev only), all `@demo.roadwatch.in`:
 | `kmc.ward001@`, `kmc.ward002@` | only their own ward |
 | `hmc@` | Howrah Municipal Corporation |
 | `nhai@`, `pwd@` | whole state (node) + roads their authority owns |
-| `admin@` | tenant admin, whole state |
-| `platform@` | RoadWatch operator (not government): moderation + audit log only |
+| `admin@` | organisation admin: whole state, plus **Administration** (team, deadlines) |
+| `platform@` | RoadWatch operator (not government): **Administration** with everything: areas and organisations, report moderation, audit log |
 
 ### Try the citizen flow (what the mobile app will do)
 
@@ -332,6 +332,46 @@ Every screen of the citizen app and both dashboards is available in English, ह
 The translations are careful drafts, not yet reviewed by native speakers; see
 "Before a pilot".
 
+## Administration (onboarding a municipality)
+
+`/admin` on the dashboard site. Two kinds of administrator, enforced by the API
+(`backend/app/api/admin_manage.py`); the screens only mirror it.
+
+| Who | Can |
+|---|---|
+| Organisation admin (`gov_admin`) | add officials **in their own organisation**, change where they work, reset passwords and two-factor, deactivate; set the organisation's **deadlines** |
+| Platform admin (RoadWatch) | all of that for any organisation, plus: **import area boundaries** (GeoJSON), create **organisations** and **road authorities**, **report moderation** (ban by report, never seeing who), **audit log** |
+
+Onboarding a new municipality, step by step:
+
+1. **Areas → Import boundaries.** Upload a GeoJSON FeatureCollection (longitude/latitude)
+   with `name`, `lgd_code`, `level` and `parent_lgd_code` on each feature. The file is
+   checked as a whole: one bad feature and nothing is saved, with a list of what to fix.
+   Re-uploading updates areas by LGD code. Reports are placed with the new boundaries
+   from then on.
+2. **Areas → Make organisation** on the municipality (or district, or state).
+3. **Team → Add an official** with role *Administrator* for that organisation. They
+   get a **temporary password, shown once**; at first sign-in they must choose their
+   own before anything else works.
+4. That administrator adds their officials (picking each one's ward or area) and
+   adjusts **Deadlines** (hours per issue type and severity; empty = RoadWatch default).
+
+Every change is in the audit log. Resetting a password, deactivating someone or
+turning off their two-factor signs them out everywhere at once (the login token
+carries a version that the change bumps).
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`:
+
+- **backend**: ruff, the full pytest suite against PostGIS and a *separate* vault
+  Postgres (as in production), and `alembic check` for both databases;
+- **web**: typecheck, translation tests, production build;
+- **mobile**: typecheck, unit tests + the no-gallery check, Android bundle;
+- **e2e**: migrates and seeds a fresh database, starts the API, the dashboards and the
+  app's web build, then runs both Playwright suites (citizen journey, dashboards,
+  administration, languages).
+
 ## Free services used
 
 | Need | Dev | When hosted |
@@ -361,6 +401,7 @@ boundaries (e.g. from DataMeet) before any pilot.
 3. **Web dashboards** ✓ public dashboard (figures, map, trends, leaderboards, drill-down, ticket pages) and government dashboard (scoped queue, map, drill-down, ageing, actions, CSV export).
 4. **Citizen mobile app** ✓ OTP sign-in, camera-only reporting with GPS, live verification status, my reports, nearby map with "I see this too", inbox with fix confirmation.
 5. **Hardening** ✓ rate limits, abuse bans without de-anonymizing, attestation hook, security audit log, route-wide access and anonymity tests, concurrency test, load test with fixes.
+6. **Administration & CI** ✓ admin screens for officials, deadlines, areas, organisations, moderation and audit; forced password change; GitHub Actions CI.
 
 ## Before a pilot
 

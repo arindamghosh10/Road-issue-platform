@@ -8,7 +8,8 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000
 const TOKEN_KEY = "roadwatch.gov.token";
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  /** `detail` is the API's raw error detail (e.g. the list of problems in a file import). */
+  constructor(public status: number, message: string, public detail: unknown = null) {
     super(message);
   }
 }
@@ -40,14 +41,18 @@ async function request<T>(path: string, init: RequestInit = {}, auth = false): P
   const res = await fetch(`${API_URL}${path}`, { ...init, headers });
   if (!res.ok) {
     let message = res.statusText;
+    let detail: unknown = null;
     try {
       const body = await res.json();
-      message = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+      detail = body.detail;
+      message = typeof detail === "string" ? detail
+        : typeof (detail as { message?: unknown })?.message === "string" ? (detail as { message: string }).message
+        : JSON.stringify(detail);
     } catch {
       /* not JSON */
     }
     if (res.status === 401 && auth) setToken(null);
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, detail);
   }
   const type = res.headers.get("content-type") ?? "";
   return (type.includes("application/json") ? res.json() : res.text()) as Promise<T>;
@@ -59,6 +64,14 @@ export const govPost = <T>(path: string, body: unknown) =>
   request<T>(`/api/v1/gov${path}`, {
     method: "POST",
     body: body instanceof FormData ? body : JSON.stringify(body),
+  }, true);
+
+/** Administration API (officials, deadlines, areas, moderation, audit). */
+export const adminGet = <T>(path: string) => request<T>(`/api/v1/admin${path}`, {}, true);
+export const adminSend = <T>(method: "POST" | "PUT" | "PATCH", path: string, body?: unknown) =>
+  request<T>(`/api/v1/admin${path}`, {
+    method,
+    body: body instanceof FormData ? body : body === undefined ? undefined : JSON.stringify(body),
   }, true);
 
 /** Query string for the dashboard filter row. */

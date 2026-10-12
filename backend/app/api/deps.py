@@ -3,7 +3,7 @@
 import uuid
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,7 +15,13 @@ from app.security.tokens import decode_token
 bearer = HTTPBearer(auto_error=False)
 
 
+# Until an official replaces an admin-issued temporary password, these are the only
+# endpoints their token works for.
+PASSWORD_CHANGE_ALLOWED = {"/api/v1/gov/me", "/api/v1/gov/auth/password"}
+
+
 def current_official(
+    request: Request,
     creds: HTTPAuthorizationCredentials | None = Depends(bearer),
     db: Session = Depends(get_core_db),
 ) -> Official:
@@ -35,6 +41,10 @@ def current_official(
         raise unauthorized from None
     if official is None or not official.is_active:
         raise unauthorized
+    if claims.get("ver", 0) != official.token_version:
+        raise unauthorized  # signed out by a password change or reset
+    if official.must_change_password and request.url.path not in PASSWORD_CHANGE_ALLOWED:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Password change required.")
     return official
 
 
